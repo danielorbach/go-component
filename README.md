@@ -1,5 +1,12 @@
-# go-component
-The Component SDK provides a set of types and functions to help enterprise developers describe, deploy, and test the Golang components that build up their software application.
+# Golang System Components
+
+This library provides a set of types and functions to help enterprise developers describe, deploy, and test the Golang components that build up their software system.
+
+## Describing components
+
+The basic building block of a backend system is a component. A component is a deployable piece of message-driven code with the capabilities to **observe and react** to events in an enterprise's ecosystem.
+
+Each component has the potential to **notify** other components about changes to its exposed _Aspect_. We say that those components have an _Interest_ to **track** the component's _Aspect_. As such, a component may have none, one or many _Aspects_ and _Interests_.
 
 ## Acknowledgments
 
