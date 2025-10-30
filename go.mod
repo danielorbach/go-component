@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/IBM/sarama v1.46.3
+	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/peterbourgon/ff/v3 v3.4.0
@@ -14,6 +15,7 @@ require (
 	gocloud.dev v0.43.0
 	gocloud.dev/pubsub/kafkapubsub v0.43.0
 	google.golang.org/grpc v1.73.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
