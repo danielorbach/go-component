@@ -258,18 +258,18 @@ func (f *forkGroup) Wait(ctx context.Context) (ready int) {
 	var wg sync.WaitGroup
 	for i, claim := range f.allocated {
 		wg.Add(1)
-		go func() {
+		go func(claim *Claim, completion <-chan struct{}) {
 			defer wg.Done()
 			select {
 			case <-claim.Ready():
 				n.Add(1)
 				slog.Debug("Loaded component is ready", "name", claim.Component.Name)
-			case <-f.completions[i]:
+			case <-completion:
 				slog.Error("Loaded component terminated before ready", "name", claim.Component.Name)
 			case <-ctx.Done():
 				slog.Warn("Loaded component was not ready in time", "name", claim.Component.Name)
 			}
-		}()
+		}(claim, f.completions[i])
 	}
 	wg.Wait()
 	return int(n.Load())
