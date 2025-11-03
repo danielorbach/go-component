@@ -225,7 +225,7 @@ var SinkComponent = &component.Descriptor{
 	},
 	// a component may have no options, in which case this field is nil.
 	OptionsType: nil,
-	// this component does interest in other components, it is a pure sink.
+	// this component does not interest other components, it is a pure sink.
 	Aspects: nil,
 	// a component declares the interests it will subscribe to. at this time, this
 	// field is not used by the loader package and provides for expressiveness.
