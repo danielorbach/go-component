@@ -85,10 +85,6 @@ func Run(body Procedure, opts ...Option) {
 	}
 
 	// execute the procedure in a separate goroutine (see execute for explanation)
-	//go func(o lifecycleOptions) {
-	//	<-execute(o.ctx, o.name, o.spanName(), o.stopper, o.logger, o.procedure)
-	//	close(o.done) // signal that the procedure has completed
-	//}(options)
 	go execute(options.ctx, options)
 	// TODO: imagine a way to communicate errors from the executed procedure and its children, and return them here
 	<-options.done
