@@ -97,7 +97,7 @@ func StartHTTP(l *component.L, address string, monitor Monitor) {
 // httpHealthResponse defines the format of a health check response sent by the
 // HTTP server. It contains a single field, Status, that represents the current
 // health status of the application, such as "SERVING" or "NOT_SERVING", conveyed
-// in JSON format. It is more for debuting purposes as kubernetes health checks
+// in JSON format. It is more for debugging purposes as kubernetes health checks
 // relies on the status code.
 type httpHealthResponse struct {
 	Status string `json:"status"`

@@ -32,7 +32,7 @@ type gRPCServer struct {
 // Cleanup function.
 //
 // Since component.L contains context, and we would like to use this context, it
-// is redundent to pass context to this function, hence
+// is redundant to pass context to this function, hence
 // nolint:contextcheck
 func StartGRPC(l *component.L, lis net.Listener, monitor Monitor) {
 	s := grpc.NewServer()
