@@ -160,7 +160,7 @@ func (f *ConfigFlag) setField(field reflect.Value, value string) error {
 	// a field of a struct, which is addressable.
 	if x, ok := field.Addr().Interface().(encoding.TextUnmarshaler); ok {
 		if err := x.UnmarshalText([]byte(value)); err != nil {
-			return fmt.Errorf("unmarhsal text: %w", err)
+			return fmt.Errorf("unmarshal text: %w", err)
 		}
 		return nil
 	}
