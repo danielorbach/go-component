@@ -2,7 +2,7 @@
 #
 # This workflow runs the test suite on every pull request and push to main,
 # validating code correctness across multiple Go versions (stable and oldstable)
-# to ensure broad compatibility.
+# with race detection enabled to catch concurrency issues.
 
 name: "🚦 Integration"
 
@@ -32,4 +32,4 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Run tests
-        run: go test -v ./...
+        run: go test -v -race ./...
