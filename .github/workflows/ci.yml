@@ -31,5 +31,11 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Run tests
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
         run: go test -v -race ./...
