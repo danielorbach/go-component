@@ -1,0 +1,31 @@
+# Continuous Integration Workflow
+#
+# This workflow runs the test suite on every pull request and push to main,
+# validating code correctness using the stable Go version.
+
+name: "🚦 Integration"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: "🧪 Testing"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Run tests
+        run: go test -v ./...
