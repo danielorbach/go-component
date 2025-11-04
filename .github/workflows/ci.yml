@@ -1,7 +1,8 @@
 # Continuous Integration Workflow
 #
 # This workflow runs the test suite on every pull request and push to main,
-# validating code correctness using the stable Go version.
+# validating code correctness across multiple Go versions (stable and oldstable)
+# to ensure broad compatibility.
 
 name: "🚦 Integration"
 
@@ -18,6 +19,9 @@ jobs:
   test:
     name: "🧪 Testing"
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ stable, oldstable ]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -25,7 +29,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version: ${{ matrix.go-version }}
 
       - name: Run tests
         run: go test -v ./...
