@@ -1,5 +1,7 @@
 # Golang System Components
 
+[![CI](https://github.com/danielorbach/go-component/actions/workflows/ci.yml/badge.svg)](https://github.com/danielorbach/go-component/actions/workflows/ci.yml)
+
 This library provides a set of types and functions to help enterprise developers describe, deploy, and test the Golang components that build up their software system.
 
 ## Describing components

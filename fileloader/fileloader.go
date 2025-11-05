@@ -78,7 +78,7 @@ func (f *FormatFlag) Set(s string) error {
 func Main(d ...*component.Descriptor) {
 	// Override the default usage message to include the footprint positional argument.
 	loader.CommandLine.Usage = func() {
-		fmt.Fprintf(loader.CommandLine.Output(), "Usage: %s [options] footprint\n", loader.CommandLine.Name())
+		_, _ = fmt.Fprintf(loader.CommandLine.Output(), "Usage: %s [options] footprint\n", loader.CommandLine.Name())
 		loader.CommandLine.PrintDefaults()
 	}
 

@@ -1,0 +1,63 @@
+# Continuous Integration Workflow
+#
+# Validates code quality and correctness on every pull request and push to
+# main.
+#
+# The test job runs the test suite across multiple Go versions (stable and
+# oldstable) with race detection enabled to catch concurrency issues.
+#
+# The lint job performs automated code quality checks using golangci-lint to
+# catch common issues and style violations.
+
+name: "🚦 Integration"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: "🧪 Testing"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ stable, oldstable ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -v -race ./...
+
+  lint:
+    name: "🌡️ Linting"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
