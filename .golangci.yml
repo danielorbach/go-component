@@ -1,0 +1,15 @@
+# Golangci-lint Configuration
+#
+# Golangci-lint can be used with zero configuration, relying on sensible
+# defaults. This file exists as a signal to future maintainers that linting
+# is part of the development workflow.
+#
+# When configuration becomes necessary, consult these resources:
+#
+# Configuration File Reference (includes link to latest full reference file):
+#   <https://golangci-lint.run/docs/configuration/file>
+#
+# Available Linters (click any linter to see its specific configuration):
+#   <https://golangci-lint.run/docs/linters>
+
+version: "2"
