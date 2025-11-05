@@ -42,8 +42,8 @@ func ParseFlags(descriptors ...*component.Descriptor) {
 // arguments and exits with a non-zero status.
 func InvalidArgument(msg string) {
 	CommandLine.Usage()
-	fmt.Fprintln(CommandLine.Output(), "") // extra newline separator for readability
-	fmt.Fprintln(CommandLine.Output(), msg)
+	_, _ = fmt.Fprintln(CommandLine.Output(), "") // extra newline separator for readability
+	_, _ = fmt.Fprintln(CommandLine.Output(), msg)
 	os.Exit(2)
 }
 

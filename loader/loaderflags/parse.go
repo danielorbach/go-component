@@ -58,7 +58,7 @@ func ParseFlags(cmdline *flag.FlagSet, descriptors []*component.Descriptor, mult
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(0)
 		}
-		fmt.Fprintln(cmdline.Output(), err)
+		_, _ = fmt.Fprintln(cmdline.Output(), err)
 		os.Exit(2)
 	}
 
