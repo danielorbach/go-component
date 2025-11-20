@@ -1,3 +1,17 @@
+# Claude Code Assistant Workflow
+#
+# Responds to @claude mentions in issues, pull requests, and review comments.
+#
+# Documentation:
+# - Setup and configuration: https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+# - Automation patterns: https://github.com/anthropics/claude-code-action/blob/main/docs/solutions.md
+# - Custom automations: https://github.com/anthropics/claude-code-action/blob/main/docs/custom-automations.md
+# - FAQ and troubleshooting: https://github.com/anthropics/claude-code-action/blob/main/docs/faq.md
+#
+# Examples of Claude in action:
+# - https://github.com/anthropics/claude-code-action/blob/main/.github/workflows/claude.yml
+# - https://github.com/anthropics/claude-code-action/pulls
+
 name: Claude Code
 
 on:
