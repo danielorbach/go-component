@@ -3,14 +3,14 @@
 # Responds to @claude mentions in issues, pull requests, and review comments.
 #
 # Documentation:
-# - Setup and configuration: https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-# - Automation patterns: https://github.com/anthropics/claude-code-action/blob/main/docs/solutions.md
-# - Custom automations: https://github.com/anthropics/claude-code-action/blob/main/docs/custom-automations.md
-# - FAQ and troubleshooting: https://github.com/anthropics/claude-code-action/blob/main/docs/faq.md
+# - Setup and configuration: <https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md>
+# - Automation patterns: <https://github.com/anthropics/claude-code-action/blob/main/docs/solutions.md>
+# - Custom automations: <https://github.com/anthropics/claude-code-action/blob/main/docs/custom-automations.md>
+# - FAQ and troubleshooting: <https://github.com/anthropics/claude-code-action/blob/main/docs/faq.md>
 #
 # Examples of Claude in action:
-# - https://github.com/anthropics/claude-code-action/blob/main/.github/workflows/claude.yml
-# - https://github.com/anthropics/claude-code-action/pulls
+# - <https://github.com/anthropics/claude-code-action/blob/main/.github/workflows/claude.yml>
+# - <https://github.com/anthropics/claude-code-action/pulls>
 
 name: Claude Code
 
@@ -54,11 +54,7 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
-
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+          # Allow Claude to use Go tooling (git and gh commands are pre-approved)
+          # See https://docs.claude.com/en/docs/claude-code/cli-reference for available options
+          claude_args: '--allowedTools "Bash(go:*)"'
 
