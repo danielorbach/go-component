@@ -12,8 +12,8 @@ Each component has the potential to **notify** other components about changes to
 
 ## Acknowledgments
 
-Special thanks to [@ofektavor](https://github.com/ofektavor), [@yuvalmendelovich](https://github.com/yuvalmendelovich), [@marombracha](https://github.com/marombracha), and [@arieltod](https://github.com/arieltod) for your contributions and collaboration on this project.
+Special thanks to [@ofektavor](https://github.com/ofektavor), [@yuvalmendelovich](https://github.com/yuvalmendelovich), [@marombracha](https://github.com/marombracha), and [@arieltod](https://github.com/arieltod).
 
-A very special thank you to [@sgebbie](https://github.com/sgebbie); many of the concepts in this project came from working together and drawing from your deep experience in systems engineering.
+A very special thank you to [@sgebbie](https://github.com/sgebbie), whose deep systems engineering experience shaped many of the core concepts here, and to [@tal-shani](https://github.com/tal-shani), whose insight, persistence, and architectural clarity materially improved the robustness and direction of this codebase.
 
 Working with you all was a pleasure, and your fingerprints are all over the good parts of this codebase. Cheers!
