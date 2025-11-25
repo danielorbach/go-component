@@ -16,6 +16,6 @@ Special thanks to @ofektavor, @yuvalmendelovich, @marombracha, and @arieltod for
 
 A very special thank you to @sgebbie; many of the concepts in this project came from working together and drawing from your deep experience in systems engineering.
 
-A very special thank you to @tal-shani for being there from the beginning. Your insight, persistence, and architectural clarity materially improved the robustness and direction of this codebase.
+A very special thank you to @tal-shani for being there from the beginning. Your unwavering support, thoughtful guidance, and genuine partnership have been invaluable throughout this journey.
 
 Working with you all was a pleasure, and your fingerprints are all over the good parts of this codebase. Cheers!
