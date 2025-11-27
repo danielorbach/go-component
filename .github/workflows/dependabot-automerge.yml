@@ -19,6 +19,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write # Required for Claude to generate GitHub app tokens
+  actions: read # Required for Claude to read CI results on PRs
 
 jobs:
   metadata:
