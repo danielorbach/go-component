@@ -68,7 +68,7 @@ jobs:
             If the changes look reasonable, approve the PR and enable auto-merge.
 
             Use: gh pr review --approve && gh pr merge --auto --squash --body ""
-          claude_args: '--allowedTools "Bash(gh pr:*)"'
+          claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
 
   major:
     name: "🔧 Handle major"
@@ -105,4 +105,4 @@ jobs:
             The maintainer will review and merge manually.
 
             Use git to commit changes with message prefix "github:".
-          claude_args: '--allowedTools "Bash(git:*),WebFetch,WebSearch"'
+          claude_args: '--allowedTools "Bash(git:*),WebFetch,WebSearch" --max-turns 50'
