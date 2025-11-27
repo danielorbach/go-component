@@ -1,5 +1,9 @@
 # Golang System Components
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/danielorbach/go-component.svg)](https://pkg.go.dev/github.com/danielorbach/go-component)
+[![Go Report Card](https://goreportcard.com/badge/github.com/danielorbach/go-component)](https://goreportcard.com/report/github.com/danielorbach/go-component)
+[![GitHub License](https://img.shields.io/github/license/danielorbach/go-component)](LICENSE)
+
 [![CI](https://github.com/danielorbach/go-component/actions/workflows/ci.yml/badge.svg)](https://github.com/danielorbach/go-component/actions/workflows/ci.yml)
 
 This library provides a set of types and functions to help enterprise developers describe, deploy, and test the Golang components that build up their software system.
