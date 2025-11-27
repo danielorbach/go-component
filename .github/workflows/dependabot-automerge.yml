@@ -2,12 +2,19 @@
 #
 # Patch updates auto-merge directly since they're low-risk. Minor updates get
 # Claude review before auto-merge approval. Major GitHub Actions updates trigger
-# Claude to review release notes and commit migration fixes, but require manual
-# approval to merge.
+# Claude to review release notes and suggest migration fixes as PR comments,
+# leaving the maintainer to apply and merge manually.
 
 name: "🤖 ClauDependabot"
 
-on: pull_request
+# Path filter avoids creating workflow runs for unrelated PRs while still
+# catching all Dependabot updates (Go modules and GitHub Actions).
+on:
+  pull_request:
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
 
 permissions:
   contents: write
@@ -80,10 +87,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
 
-      - name: Review and fix breaking changes
+      - name: Review and suggest fixes
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -99,10 +104,8 @@ jobs:
             1. Fetch the action's release page and CHANGELOG to understand what changed
             2. Check the README for migration guides
             3. Review the workflow files in .github/workflows/ that use this action
-            4. If changes are needed, update the workflow files and commit the fixes
+            4. If changes are needed, comment on the PR with suggested fixes
 
-            Do NOT approve or merge this PR. Only commit necessary migration fixes.
-            The maintainer will review and merge manually.
-
-            Use git to commit changes with message prefix "github:".
-          claude_args: '--allowedTools "Bash(git:*),WebFetch,WebSearch" --max-turns 50'
+            Do NOT approve, merge, or push commits to this PR.
+            Use `gh pr comment` to post your analysis and any suggested code changes.
+          claude_args: '--allowedTools "Bash(gh pr:*),WebFetch,WebSearch" --max-turns 50'
