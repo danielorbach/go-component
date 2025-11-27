@@ -1,16 +1,14 @@
 # Dependabot Configuration
 #
-# Keeps dependencies current by automatically opening pull requests when updates
-# become available. Go modules are checked daily while GitHub Actions are
-# checked weekly.
+# Go modules update frequently as the ecosystem matures, so daily checks catch
+# security patches quickly. GitHub Actions are more stable and weekly suffices.
 #
-# Related packages (OpenTelemetry, GoCloud) are grouped into combined PRs to
-# reduce noise. Patch-level updates auto-merge after CI passes via the
-# dependabot-automerge workflow.
+# OpenTelemetry and GoCloud packages share release cycles, so grouping them
+# avoids version incompatibilities. Patch updates auto-merge via the
+# dependabot-automerge workflow after CI passes.
 
 version: 2
 updates:
-  # 📦 Go module dependencies
   - package-ecosystem: gomod
     directory: /
     schedule:
@@ -27,7 +25,6 @@ updates:
         patterns:
           - "gocloud.dev/*"
 
-  # ⚙️ GitHub Actions workflows
   - package-ecosystem: github-actions
     directory: /
     schedule:

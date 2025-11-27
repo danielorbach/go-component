@@ -1,10 +1,11 @@
 # Dependabot Auto-merge Workflow
 #
-# Automatically merges patch-level Dependabot updates after CI passes to reduce
-# maintenance overhead for low-risk version bumps. Minor and major updates still
-# require manual review.
+# Patch updates auto-merge directly since they're low-risk. Minor updates get
+# Claude review before auto-merge approval. Major GitHub Actions updates trigger
+# Claude to review release notes and commit migration fixes, but require manual
+# approval to merge.
 
-name: "🤖 Dependabot Auto-merge"
+name: "🤖 ClauDependabot"
 
 on: pull_request
 
@@ -13,10 +14,16 @@ permissions:
   pull-requests: write
 
 jobs:
-  automerge:
-    name: "🔀 Auto-merge"
+  metadata:
+    name: "📋 Fetch metadata"
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
+    outputs:
+      update-type: ${{ steps.metadata.outputs.update-type }}
+      package-ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}
+      dependency-names: ${{ steps.metadata.outputs.dependency-names }}
+      previous-version: ${{ steps.metadata.outputs.previous-version }}
+      new-version: ${{ steps.metadata.outputs.new-version }}
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
@@ -24,9 +31,78 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Auto-merge patch updates
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
-        run: gh pr merge --auto --squash "$PR_URL"
+  patch:
+    name: "🔀 Auto-merge patch"
+    runs-on: ubuntu-latest
+    needs: metadata
+    if: needs.metadata.outputs.update-type == 'version-update:semver-patch'
+    steps:
+      - name: Enable auto-merge
+        # Empty body avoids verbose Dependabot PR descriptions in squash commits
+        run: gh pr merge --auto --squash --body "" "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  minor:
+    name: "🤖 Review minor"
+    runs-on: ubuntu-latest
+    needs: metadata
+    if: needs.metadata.outputs.update-type == 'version-update:semver-minor'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Review and approve
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            This is a Dependabot PR for a minor version update.
+
+            Dependency: ${{ needs.metadata.outputs.dependency-names }}
+            Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
+            PR: ${{ github.event.pull_request.html_url }}
+
+            Review the changes in this PR. Minor updates should be backwards-compatible.
+            If the changes look reasonable, approve the PR and enable auto-merge.
+
+            Use: gh pr review --approve && gh pr merge --auto --squash --body ""
+          claude_args: '--allowedTools "Bash(gh pr:*)"'
+
+  major:
+    name: "🔧 Handle major"
+    runs-on: ubuntu-latest
+    needs: metadata
+    if: |
+      needs.metadata.outputs.update-type == 'version-update:semver-major' &&
+      needs.metadata.outputs.package-ecosystem == 'github_actions'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Review and fix breaking changes
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            This is a Dependabot PR for a MAJOR version update of a GitHub Action.
+
+            Action: ${{ needs.metadata.outputs.dependency-names }}
+            Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
+            PR: ${{ github.event.pull_request.html_url }}
+
+            Major updates may have breaking changes. Please:
+
+            1. Fetch the action's release page and CHANGELOG to understand what changed
+            2. Check the README for migration guides
+            3. Review the workflow files in .github/workflows/ that use this action
+            4. If changes are needed, update the workflow files and commit the fixes
+
+            Do NOT approve or merge this PR. Only commit necessary migration fixes.
+            The maintainer will review and merge manually.
+
+            Use git to commit changes with message prefix "github:".
+          claude_args: '--allowedTools "Bash(git:*),WebFetch,WebSearch"'
