@@ -46,6 +46,12 @@ jobs:
     needs: metadata
     if: needs.metadata.outputs.update-type == 'version-update:semver-patch'
     steps:
+      - name: Approve PR
+        run: gh pr review --approve -b "Patch update — auto-approved" "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Enable auto-merge
         # Empty body avoids verbose Dependabot PR descriptions in squash commits
         run: gh pr merge --auto --squash --body "" "$PR_URL"
