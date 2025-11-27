@@ -1,0 +1,111 @@
+# Dependabot Auto-merge Workflow
+#
+# Patch updates auto-merge directly since they're low-risk. Minor updates get
+# Claude review before auto-merge approval. Major GitHub Actions updates trigger
+# Claude to review release notes and suggest migration fixes as PR comments,
+# leaving the maintainer to apply and merge manually.
+
+name: "🤖 ClauDependabot"
+
+# Path filter avoids creating workflow runs for unrelated PRs while still
+# catching all Dependabot updates (Go modules and GitHub Actions).
+on:
+  pull_request:
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  metadata:
+    name: "📋 Fetch metadata"
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    outputs:
+      update-type: ${{ steps.metadata.outputs.update-type }}
+      package-ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}
+      dependency-names: ${{ steps.metadata.outputs.dependency-names }}
+      previous-version: ${{ steps.metadata.outputs.previous-version }}
+      new-version: ${{ steps.metadata.outputs.new-version }}
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+  patch:
+    name: "🔀 Auto-merge patch"
+    runs-on: ubuntu-latest
+    needs: metadata
+    if: needs.metadata.outputs.update-type == 'version-update:semver-patch'
+    steps:
+      - name: Enable auto-merge
+        # Empty body avoids verbose Dependabot PR descriptions in squash commits
+        run: gh pr merge --auto --squash --body "" "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  minor:
+    name: "🤖 Review minor"
+    runs-on: ubuntu-latest
+    needs: metadata
+    if: needs.metadata.outputs.update-type == 'version-update:semver-minor'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Review and approve
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            This is a Dependabot PR for a minor version update.
+
+            Dependency: ${{ needs.metadata.outputs.dependency-names }}
+            Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
+            PR: ${{ github.event.pull_request.html_url }}
+
+            Review the changes in this PR. Minor updates should be backwards-compatible.
+            If the changes look reasonable, approve the PR and enable auto-merge.
+
+            Use: gh pr review --approve && gh pr merge --auto --squash --body ""
+          claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
+
+  major:
+    name: "🔧 Handle major"
+    runs-on: ubuntu-latest
+    needs: metadata
+    if: |
+      needs.metadata.outputs.update-type == 'version-update:semver-major' &&
+      needs.metadata.outputs.package-ecosystem == 'github_actions'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Review and suggest fixes
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            This is a Dependabot PR for a MAJOR version update of a GitHub Action.
+
+            Action: ${{ needs.metadata.outputs.dependency-names }}
+            Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
+            PR: ${{ github.event.pull_request.html_url }}
+
+            Major updates may have breaking changes. Please:
+
+            1. Fetch the action's release page and CHANGELOG to understand what changed
+            2. Check the README for migration guides
+            3. Review the workflow files in .github/workflows/ that use this action
+            4. If changes are needed, comment on the PR with suggested fixes
+
+            Do NOT approve, merge, or push commits to this PR.
+            Use `gh pr comment` to post your analysis and any suggested code changes.
+          claude_args: '--allowedTools "Bash(gh pr:*),WebFetch,WebSearch" --max-turns 50'
