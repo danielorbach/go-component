@@ -19,6 +19,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write # Required for Claude to generate GitHub app tokens
+  actions: read # Required for Claude to read CI results on PRs
 
 jobs:
   metadata:
@@ -44,6 +46,12 @@ jobs:
     needs: metadata
     if: needs.metadata.outputs.update-type == 'version-update:semver-patch'
     steps:
+      - name: Approve PR
+        run: gh pr review --approve -b "Patch update — auto-approved" "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Enable auto-merge
         # Empty body avoids verbose Dependabot PR descriptions in squash commits
         run: gh pr merge --auto --squash --body "" "$PR_URL"
@@ -64,7 +72,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
+          prompt: |
             This is a Dependabot PR for a minor version update.
 
             Dependency: ${{ needs.metadata.outputs.dependency-names }}
@@ -92,7 +100,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
+          prompt: |
             This is a Dependabot PR for a MAJOR version update of a GitHub Action.
 
             Action: ${{ needs.metadata.outputs.dependency-names }}
