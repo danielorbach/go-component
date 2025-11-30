@@ -7,10 +7,13 @@
 
 name: "🤖 ClauDependabot"
 
-# Path filter avoids creating workflow runs for unrelated PRs while still
-# catching all Dependabot updates (Go modules and GitHub Actions).
 on:
-  pull_request:
+  # Claude Code uses OIDC for GitHub app impersonation, which requires the
+  # workflow to match main. This trigger satisfies this requirement, even when
+  # Dependabot updates this file.
+  pull_request_target:
+    # Path filter avoids creating workflow runs for unrelated PRs while still
+    # catching all Dependabot updates (Go modules and GitHub Actions).
     paths:
       - 'go.mod'
       - 'go.sum'
@@ -67,6 +70,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # We need the code at PR's head because pull_request_target checks
+          # out main by default.
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Review and approve
         uses: anthropics/claude-code-action@v1
@@ -95,6 +102,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # We need the code at PR's head because pull_request_target checks
+          # out main by default.
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Review and suggest fixes
         uses: anthropics/claude-code-action@v1
