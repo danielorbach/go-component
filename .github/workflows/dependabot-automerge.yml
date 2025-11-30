@@ -72,7 +72,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
+          prompt: |
             This is a Dependabot PR for a minor version update.
 
             Dependency: ${{ needs.metadata.outputs.dependency-names }}
@@ -100,7 +100,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
+          prompt: |
             This is a Dependabot PR for a MAJOR version update of a GitHub Action.
 
             Action: ${{ needs.metadata.outputs.dependency-names }}
