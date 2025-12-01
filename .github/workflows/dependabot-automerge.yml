@@ -5,6 +5,13 @@
 # - Minor: Claude reviews, approves if acceptable
 # - Major: Claude advises, human must approve
 #
+#   ┌──────────┐
+#   │ metadata │
+#   └────┬─────┘
+#        ├─── patch ---> auto-approve ---------------------------> auto-merge
+#        ├─── minor ---> Claude vets ------> approve ------------> auto-merge
+#        └─── major ---> Claude advises ---> human approves -----> auto-merge
+#
 # Squash commits default to using the PR description as body, but Dependabot
 # PRs include lengthy changelogs and compatibility notes. Each job overrides
 # the body to keep commit messages clean.
