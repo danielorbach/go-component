@@ -60,8 +60,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable auto-merge
-        # Empty body avoids verbose Dependabot PR descriptions in squash commits
-        run: gh pr merge --auto --squash --body "" "$PR_URL"
+        run: gh pr merge --auto --squash --body "Auto-approved without review as patch updates are low-risk." "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,6 +95,12 @@ jobs:
 
             Use: gh pr review --approve --body "your message"
           claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
+
+      - name: Enable auto-merge
+        run: gh pr merge --auto --squash --body "Reviewed and approved by Claude." "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   major:
     name: Advise major
