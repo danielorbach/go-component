@@ -40,12 +40,14 @@ jobs:
       dependency-names: ${{ steps.metadata.outputs.dependency-names }}
       previous-version: ${{ steps.metadata.outputs.previous-version }}
       new-version: ${{ steps.metadata.outputs.new-version }}
+      compatibility-score: ${{ steps.metadata.outputs.compatibility-score }}
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
+          compat-lookup: true
 
   patch:
     name: Approve patch
@@ -60,10 +62,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable auto-merge
-        run: gh pr merge --auto --squash --body "Auto-approved without review as patch updates are low-risk." "$PR_URL"
+        run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            This patch update was merged automatically since patch-level
+            changes carry minimal risk of breaking existing functionality.
+
+            Compatibility score: ${{ needs.metadata.outputs.compatibility-score }}%
 
   minor:
     name: Vet minor
@@ -97,10 +104,14 @@ jobs:
           claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
 
       - name: Enable auto-merge
-        run: gh pr merge --auto --squash --body "Reviewed and approved by Claude." "$PR_URL"
+        run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            This minor update was reviewed by Claude before merging.
+
+            Compatibility score: ${{ needs.metadata.outputs.compatibility-score }}%
 
   major:
     name: Advise major
@@ -142,7 +153,13 @@ jobs:
       - name: Enable auto-merge
         # Auto-merge is enabled but will only proceed after a human reviews
         # Claude's analysis and manually approves the PR.
-        run: gh pr merge --auto --squash --body "" "$PR_URL"
+        run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            This major update may include breaking changes. Claude analyzed
+            the release notes and posted recommendations on the PR. Auto-merge
+            was enabled so the update merges once a maintainer approves.
+
+            Compatibility score: ${{ needs.metadata.outputs.compatibility-score }}%
