@@ -142,8 +142,8 @@ go.opentelemetry.io/otel/trace v1.38.0 h1:Fxk5bKrDZJUH+AMyyIXGcFAPah0oRcT+LuNtJr
 go.opentelemetry.io/otel/trace v1.38.0/go.mod h1:j1P9ivuFsTceSWe1oY+EeW3sc+Pp42sO++GHkg4wwhs=
 gocloud.dev v0.44.0 h1:iVyMAqFl2r6xUy7M4mfqwlN+21UpJoEtgHEcfiLMUXs=
 gocloud.dev v0.44.0/go.mod h1:ZmjROXGdC/eKZLF1N+RujDlFRx3D+4Av2thREKDMVxY=
-gocloud.dev/pubsub/kafkapubsub v0.43.0 h1:Kgwi0na69W3RgxEffEkdrMhox6A3Q0gajoJtjHGVr/s=
-gocloud.dev/pubsub/kafkapubsub v0.43.0/go.mod h1:uKI0CXuj7HJ/YnnOLQ3VkDnuUnkz+q/d+tRzmfhmOOU=
+gocloud.dev/pubsub/kafkapubsub v0.44.0 h1:nQvzfnEN6lCh4j2p+1t0OLS4nmC2U/Ji5aWHVwgkifg=
+gocloud.dev/pubsub/kafkapubsub v0.44.0/go.mod h1:/gcNz6OG4HgcY+w2LXwwY4qaRMgtq+SXoPSQU2jOlcw=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
 golang.org/x/crypto v0.6.0/go.mod h1:OFC/31mSvZgRz0V1QTNCzfAI1aIRzbiufJtkMIlEp58=
