@@ -84,13 +84,6 @@ jobs:
     needs: metadata
     if: needs.metadata.outputs.update-type == 'version-update:semver-minor'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          # We need the code at PR's head because pull_request_target checks
-          # out main by default.
-          ref: ${{ github.event.pull_request.head.sha }}
-
       - name: Review and approve
         uses: anthropics/claude-code-action@v1
         with:
@@ -102,9 +95,11 @@ jobs:
             Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
 
-            Review the changes in this PR. Minor updates should be backwards-compatible.
-            If the changes look reasonable, approve the PR with a message that includes
-            your model identifier (e.g. "Reviewed by claude-sonnet-4-20250514").
+            Review the changes in this PR using `gh pr diff` and `gh pr view`.
+
+            Minor updates should be backwards-compatible. If the changes look
+            reasonable, approve the PR with a message that includes your model
+            identifier (e.g. "Reviewed by claude-sonnet-4-20250514").
 
             Use: gh pr review --approve --body "your message"
           claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
@@ -127,13 +122,6 @@ jobs:
       needs.metadata.outputs.update-type == 'version-update:semver-major' &&
       needs.metadata.outputs.package-ecosystem == 'github_actions'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          # We need the code at PR's head because pull_request_target checks
-          # out main by default.
-          ref: ${{ github.event.pull_request.head.sha }}
-
       - name: Review and suggest fixes
         uses: anthropics/claude-code-action@v1
         with:
@@ -144,6 +132,8 @@ jobs:
             Action: ${{ needs.metadata.outputs.dependency-names }}
             Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
+
+            Review the changes in this PR using `gh pr diff` and `gh pr view`.
 
             Major updates may have breaking changes. Please:
 
