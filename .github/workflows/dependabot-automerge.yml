@@ -87,9 +87,10 @@ jobs:
             PR: ${{ github.event.pull_request.html_url }}
 
             Review the changes in this PR. Minor updates should be backwards-compatible.
-            If the changes look reasonable, approve the PR and enable auto-merge.
+            If the changes look reasonable, approve the PR with a message that includes
+            your model identifier (e.g. "Reviewed by claude-sonnet-4-20250514").
 
-            Use: gh pr review --approve && gh pr merge --auto --squash --body ""
+            Use: gh pr review --approve --body "your message"
           claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
 
   major:
