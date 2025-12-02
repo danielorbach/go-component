@@ -19,10 +19,13 @@
 name: "🤖 ClauDependabot"
 
 on:
-  # Claude Code uses OIDC for GitHub app impersonation, which requires the
-  # workflow to match main. This trigger satisfies this requirement, even when
-  # Dependabot updates this file.
-  pull_request_target:
+  # Using pull_request (not pull_request_target) because the OIDC approach for
+  # GitHub app impersonation does not appear to work with Dependabot PRs.
+  # See: https://github.com/anthropics/claude-code-action/issues/713
+  #
+  # This means Claude jobs will fail if Dependabot updates this file itself,
+  # but we've minimized actions here to reduce that risk.
+  pull_request:
     # Path filter avoids creating workflow runs for unrelated PRs while still
     # catching all Dependabot updates (Go modules and GitHub Actions).
     paths:
@@ -31,10 +34,9 @@ on:
       - '.github/workflows/**'
 
 permissions:
-  contents: write
-  pull-requests: write
-  id-token: write # Required for Claude to generate GitHub app tokens
-  actions: read # Required for Claude to read CI results on PRs
+  contents: write       # Required by: gh pr merge --auto
+  pull-requests: write  # Required by: gh pr review --approve
+  id-token: write       # Required for Claude to generate GitHub app tokens
 
 jobs:
   metadata:
@@ -85,13 +87,6 @@ jobs:
     needs: metadata
     if: needs.metadata.outputs.update-type == 'version-update:semver-minor'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          # We need the code at PR's head because pull_request_target checks
-          # out main by default.
-          ref: ${{ github.event.pull_request.head.sha }}
-
       - name: Review and approve
         uses: anthropics/claude-code-action@v1
         with:
@@ -99,16 +94,22 @@ jobs:
           prompt: |
             This is a Dependabot PR for a minor version update.
 
+            Package ecosystem: ${{ needs.metadata.outputs.package-ecosystem }}
             Dependency: ${{ needs.metadata.outputs.dependency-names }}
             Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
 
-            Review the changes in this PR. Minor updates should be backwards-compatible.
-            If the changes look reasonable, approve the PR with a message that includes
-            your model identifier (e.g. "Reviewed by claude-sonnet-4-20250514").
+            There is no local checkout of the repository. Use `gh pr diff` and
+            `gh pr view` to review the changes.
+
+            Minor updates should be backwards-compatible. If the changes look
+            reasonable, approve the PR with a message that includes your model
+            identifier (e.g. "Reviewed by claude-sonnet-4-20250514").
 
             Use: gh pr review --approve --body "your message"
-          claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
+          claude_args: >-
+            --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*)"
+            --max-turns 25
 
       - name: Enable auto-merge
         run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
@@ -124,36 +125,38 @@ jobs:
     name: Advise major
     runs-on: ubuntu-latest
     needs: metadata
-    if: |
-      needs.metadata.outputs.update-type == 'version-update:semver-major' &&
-      needs.metadata.outputs.package-ecosystem == 'github_actions'
+    if: needs.metadata.outputs.update-type == 'version-update:semver-major'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          # We need the code at PR's head because pull_request_target checks
-          # out main by default.
-          ref: ${{ github.event.pull_request.head.sha }}
-
       - name: Review and suggest fixes
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            This is a Dependabot PR for a MAJOR version update of a GitHub Action.
+            This is a Dependabot PR for a MAJOR version update.
 
-            Action: ${{ needs.metadata.outputs.dependency-names }}
+            Package ecosystem: ${{ needs.metadata.outputs.package-ecosystem }}
+            Dependency: ${{ needs.metadata.outputs.dependency-names }}
             Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
 
+            There is no local checkout of the repository. Use `gh pr diff` and
+            `gh pr view` to review the changes.
+
             Major updates may have breaking changes. Please:
 
-            1. Fetch the action's release page and CHANGELOG to understand what changed
+            1. Fetch the dependency's release page and CHANGELOG to understand what changed
             2. Check the README for migration guides
-            3. Review the workflow files in .github/workflows/ that use this action
+            3. Review the codebase for usages of this dependency
             4. If changes are needed, comment on the PR with suggested fixes
 
+            For github_actions ecosystem specifically:
+            - Review the workflow files in .github/workflows/ that use this action
+            - Check for deprecated inputs, outputs, or runner requirements
+
             Do NOT approve, merge, or push commits to this PR.
-            Use `gh pr comment` to post your analysis and any suggested code changes.
-          claude_args: '--allowedTools "Bash(gh pr:*),WebFetch,WebSearch" --max-turns 50'
+            Use `gh pr review --comment` to post your analysis and any suggested code changes.
+          claude_args: >-
+            --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review --comment:*),Bash(gh pr review -c:*),WebFetch,WebSearch"
+            --disallowedTools "Bash(gh pr review --approve:*),Bash(gh pr review -a:*)"
+            --max-turns 50
 
