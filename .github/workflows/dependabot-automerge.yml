@@ -31,10 +31,10 @@ on:
       - '.github/workflows/**'
 
 permissions:
-  contents: write
-  pull-requests: write
-  id-token: write # Required for Claude to generate GitHub app tokens
-  actions: read # Required for Claude to read CI results on PRs
+  contents: write       # Required by: gh pr merge --auto
+  pull-requests: write  # Required by: gh pr review --approve
+  id-token: write       # Required for Claude to generate GitHub app tokens
+  actions: read         # Required for Claude to read CI results on PRs
 
 jobs:
   metadata:
