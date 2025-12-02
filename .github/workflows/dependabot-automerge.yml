@@ -7,10 +7,13 @@
 
 name: "🤖 ClauDependabot"
 
-# Path filter avoids creating workflow runs for unrelated PRs while still
-# catching all Dependabot updates (Go modules and GitHub Actions).
 on:
-  pull_request:
+  # Claude Code uses OIDC for GitHub app impersonation, which requires the
+  # workflow to match main. This trigger satisfies this requirement, even when
+  # Dependabot updates this file.
+  pull_request_target:
+    # Path filter avoids creating workflow runs for unrelated PRs while still
+    # catching all Dependabot updates (Go modules and GitHub Actions).
     paths:
       - 'go.mod'
       - 'go.sum'
@@ -24,7 +27,7 @@ permissions:
 
 jobs:
   metadata:
-    name: "📋 Fetch metadata"
+    name: Fetch metadata
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
     outputs:
@@ -41,7 +44,7 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
   patch:
-    name: "🔀 Auto-merge patch"
+    name: Approve patch
     runs-on: ubuntu-latest
     needs: metadata
     if: needs.metadata.outputs.update-type == 'version-update:semver-patch'
@@ -60,13 +63,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   minor:
-    name: "🤖 Review minor"
+    name: Vet minor
     runs-on: ubuntu-latest
     needs: metadata
     if: needs.metadata.outputs.update-type == 'version-update:semver-minor'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # We need the code at PR's head because pull_request_target checks
+          # out main by default.
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Review and approve
         uses: anthropics/claude-code-action@v1
@@ -80,13 +87,14 @@ jobs:
             PR: ${{ github.event.pull_request.html_url }}
 
             Review the changes in this PR. Minor updates should be backwards-compatible.
-            If the changes look reasonable, approve the PR and enable auto-merge.
+            If the changes look reasonable, approve the PR with a message that includes
+            your model identifier (e.g. "Reviewed by claude-sonnet-4-20250514").
 
-            Use: gh pr review --approve && gh pr merge --auto --squash --body ""
+            Use: gh pr review --approve --body "your message"
           claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
 
   major:
-    name: "🔧 Handle major"
+    name: Advise major
     runs-on: ubuntu-latest
     needs: metadata
     if: |
@@ -95,6 +103,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # We need the code at PR's head because pull_request_target checks
+          # out main by default.
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Review and suggest fixes
         uses: anthropics/claude-code-action@v1
