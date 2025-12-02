@@ -1,16 +1,16 @@
 # Dependabot Auto-merge Workflow
 #
-# All Dependabot PRs enable auto-merge; only the approval process differs:
+# Patch and minor updates enable auto-merge; major updates require human merge:
 # - Patch: auto-approved (low-risk)
 # - Minor: Claude reviews, approves if acceptable
-# - Major: Claude advises, human must approve
+# - Major: Claude advises, human must approve and merge
 #
 #   ┌──────────┐
 #   │ metadata │
 #   └────┬─────┘
 #        ├─── patch ---> auto-approve ---------------------------> auto-merge
 #        ├─── minor ---> Claude vets ------> approve ------------> auto-merge
-#        └─── major ---> Claude advises ---> human approves -----> auto-merge
+#        └─── major ---> Claude advises ---> human approves and merges
 #
 # Squash commits default to using the PR description as body, but Dependabot
 # PRs include lengthy changelogs and compatibility notes. Each job overrides
@@ -157,16 +157,3 @@ jobs:
             Use `gh pr comment` to post your analysis and any suggested code changes.
           claude_args: '--allowedTools "Bash(gh pr:*),WebFetch,WebSearch" --max-turns 50'
 
-      - name: Enable auto-merge
-        # Auto-merge is enabled but will only proceed after a human reviews
-        # Claude's analysis and manually approves the PR.
-        run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BODY: |
-            This major update may include breaking changes. Claude analyzed
-            the release notes and posted recommendations on the PR. Auto-merge
-            was enabled so the update merges once a maintainer approves.
-
-            Compatibility score: ${{ needs.metadata.outputs.compatibility-score }}%
