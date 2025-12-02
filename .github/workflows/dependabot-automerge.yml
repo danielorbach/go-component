@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   metadata:
-    name: "📋 Fetch metadata"
+    name: Fetch metadata
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
     outputs:
@@ -44,7 +44,7 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
   patch:
-    name: "🔀 Auto-merge patch"
+    name: Approve patch
     runs-on: ubuntu-latest
     needs: metadata
     if: needs.metadata.outputs.update-type == 'version-update:semver-patch'
@@ -63,7 +63,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   minor:
-    name: "🤖 Review minor"
+    name: Vet minor
     runs-on: ubuntu-latest
     needs: metadata
     if: needs.metadata.outputs.update-type == 'version-update:semver-minor'
@@ -93,7 +93,7 @@ jobs:
           claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
 
   major:
-    name: "🔧 Handle major"
+    name: Advise major
     runs-on: ubuntu-latest
     needs: metadata
     if: |
