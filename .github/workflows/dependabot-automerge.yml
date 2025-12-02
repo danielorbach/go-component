@@ -99,14 +99,17 @@ jobs:
             Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
 
-            Review the changes in this PR using `gh pr diff` and `gh pr view`.
+            There is no local checkout of the repository. Use `gh pr diff` and
+            `gh pr view` to review the changes.
 
             Minor updates should be backwards-compatible. If the changes look
             reasonable, approve the PR with a message that includes your model
             identifier (e.g. "Reviewed by claude-sonnet-4-20250514").
 
             Use: gh pr review --approve --body "your message"
-          claude_args: '--allowedTools "Bash(gh pr:*)" --max-turns 25'
+          claude_args: >-
+            --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*)"
+            --max-turns 25
 
       - name: Enable auto-merge
         run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
@@ -136,7 +139,8 @@ jobs:
             Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
 
-            Review the changes in this PR using `gh pr diff` and `gh pr view`.
+            There is no local checkout of the repository. Use `gh pr diff` and
+            `gh pr view` to review the changes.
 
             Major updates may have breaking changes. Please:
 
@@ -150,6 +154,9 @@ jobs:
             - Check for deprecated inputs, outputs, or runner requirements
 
             Do NOT approve, merge, or push commits to this PR.
-            Use `gh pr comment` to post your analysis and any suggested code changes.
-          claude_args: '--allowedTools "Bash(gh pr:*),WebFetch,WebSearch" --max-turns 50'
+            Use `gh pr review --comment` to post your analysis and any suggested code changes.
+          claude_args: >-
+            --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review --comment:*),Bash(gh pr review -c:*),WebFetch,WebSearch"
+            --disallowedTools "Bash(gh pr review --approve:*),Bash(gh pr review -a:*)"
+            --max-turns 50
 
