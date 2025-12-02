@@ -19,10 +19,13 @@
 name: "🤖 ClauDependabot"
 
 on:
-  # Claude Code uses OIDC for GitHub app impersonation, which requires the
-  # workflow to match main. This trigger satisfies this requirement, even when
-  # Dependabot updates this file.
-  pull_request_target:
+  # Using pull_request (not pull_request_target) because the OIDC approach for
+  # GitHub app impersonation does not appear to work with Dependabot PRs.
+  # See: https://github.com/anthropics/claude-code-action/issues/713
+  #
+  # This means Claude jobs will fail if Dependabot updates this file itself,
+  # but we've minimized actions here to reduce that risk.
+  pull_request:
     # Path filter avoids creating workflow runs for unrelated PRs while still
     # catching all Dependabot updates (Go modules and GitHub Actions).
     paths:
