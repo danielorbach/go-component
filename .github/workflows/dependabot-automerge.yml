@@ -94,6 +94,7 @@ jobs:
           prompt: |
             This is a Dependabot PR for a minor version update.
 
+            Package ecosystem: ${{ needs.metadata.outputs.package-ecosystem }}
             Dependency: ${{ needs.metadata.outputs.dependency-names }}
             Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
@@ -121,18 +122,17 @@ jobs:
     name: Advise major
     runs-on: ubuntu-latest
     needs: metadata
-    if: |
-      needs.metadata.outputs.update-type == 'version-update:semver-major' &&
-      needs.metadata.outputs.package-ecosystem == 'github_actions'
+    if: needs.metadata.outputs.update-type == 'version-update:semver-major'
     steps:
       - name: Review and suggest fixes
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            This is a Dependabot PR for a MAJOR version update of a GitHub Action.
+            This is a Dependabot PR for a MAJOR version update.
 
-            Action: ${{ needs.metadata.outputs.dependency-names }}
+            Package ecosystem: ${{ needs.metadata.outputs.package-ecosystem }}
+            Dependency: ${{ needs.metadata.outputs.dependency-names }}
             Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
 
@@ -140,10 +140,14 @@ jobs:
 
             Major updates may have breaking changes. Please:
 
-            1. Fetch the action's release page and CHANGELOG to understand what changed
+            1. Fetch the dependency's release page and CHANGELOG to understand what changed
             2. Check the README for migration guides
-            3. Review the workflow files in .github/workflows/ that use this action
+            3. Review the codebase for usages of this dependency
             4. If changes are needed, comment on the PR with suggested fixes
+
+            For github_actions ecosystem specifically:
+            - Review the workflow files in .github/workflows/ that use this action
+            - Check for deprecated inputs, outputs, or runner requirements
 
             Do NOT approve, merge, or push commits to this PR.
             Use `gh pr comment` to post your analysis and any suggested code changes.
