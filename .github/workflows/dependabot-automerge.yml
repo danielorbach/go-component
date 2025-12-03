@@ -5,15 +5,17 @@
 # - Minor: Claude reviews, approves if acceptable
 # - Major: Claude advises, human must approve and merge
 #
-#   ┌──────────┐
-#   │ metadata │
-#   └────┬─────┘
-#        ├─── patch ---> auto-approve ---------------------------> auto-merge
-#        ├─── minor ---> Claude vets ------> approve ------------> auto-merge
-#        └─── major ---> Claude advises ---> human approves and merges
+#   ┌────────────────────────────────────────────────────────────────────┐
+#   │                         Review & Merge                             │
+#   ├────────────────────────────────────────────────────────────────────┤
+#   │ 1. Fetch metadata                                                  │
+#   │ 2. Auto-approve patch ──────────────────────> 5. Auto-merge patch  │
+#   │ 3. Claude review minor ─────────────────────> 6. Auto-merge minor  │
+#   │ 4. Claude review major ─────────────────────> (human merge)        │
+#   └────────────────────────────────────────────────────────────────────┘
 #
 # Squash commits default to using the PR description as body, but Dependabot
-# PRs include lengthy changelogs and compatibility notes. Each job overrides
+# PRs include lengthy changelogs and compatibility notes. Each step overrides
 # the body to keep commit messages clean.
 
 name: "🤖 ClauDependabot"
@@ -39,17 +41,10 @@ permissions:
   id-token: write       # Required for Claude to generate GitHub app tokens
 
 jobs:
-  metadata:
-    name: Fetch metadata
+  mergeview:
+    name: Review & Merge
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
-    outputs:
-      update-type: ${{ steps.metadata.outputs.update-type }}
-      package-ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}
-      dependency-names: ${{ steps.metadata.outputs.dependency-names }}
-      previous-version: ${{ steps.metadata.outputs.previous-version }}
-      new-version: ${{ steps.metadata.outputs.new-version }}
-      compatibility-score: ${{ steps.metadata.outputs.compatibility-score }}
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
@@ -58,36 +53,15 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
           compat-lookup: true
 
-  patch:
-    name: Approve patch
-    runs-on: ubuntu-latest
-    needs: metadata
-    if: needs.metadata.outputs.update-type == 'version-update:semver-patch'
-    steps:
-      - name: Approve PR
+      - name: Approve patch
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: gh pr review --approve -b "Patch update — auto-approved" "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BODY: |
-            This patch update was merged automatically since patch-level
-            changes carry minimal risk of breaking existing functionality.
-
-            Compatibility score: ${{ needs.metadata.outputs.compatibility-score }}%
-
-  minor:
-    name: Vet minor
-    runs-on: ubuntu-latest
-    needs: metadata
-    if: needs.metadata.outputs.update-type == 'version-update:semver-minor'
-    steps:
-      - name: Review and approve
+      - name: Review minor
+        if: steps.metadata.outputs.update-type == 'version-update:semver-minor'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -99,9 +73,9 @@ jobs:
           prompt: |
             This is a Dependabot PR for a minor version update.
 
-            Package ecosystem: ${{ needs.metadata.outputs.package-ecosystem }}
-            Dependency: ${{ needs.metadata.outputs.dependency-names }}
-            Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
+            Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}
+            Dependency: ${{ steps.metadata.outputs.dependency-names }}
+            Update: ${{ steps.metadata.outputs.previous-version }} → ${{ steps.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
 
             There is no local checkout of the repository. Use `gh pr diff` and
@@ -116,23 +90,8 @@ jobs:
             --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*)"
             --max-turns 25
 
-      - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BODY: |
-            This minor update was reviewed by Claude before merging.
-
-            Compatibility score: ${{ needs.metadata.outputs.compatibility-score }}%
-
-  major:
-    name: Advise major
-    runs-on: ubuntu-latest
-    needs: metadata
-    if: needs.metadata.outputs.update-type == 'version-update:semver-major'
-    steps:
-      - name: Review and suggest fixes
+      - name: Review major
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -144,9 +103,9 @@ jobs:
           prompt: |
             This is a Dependabot PR for a MAJOR version update.
 
-            Package ecosystem: ${{ needs.metadata.outputs.package-ecosystem }}
-            Dependency: ${{ needs.metadata.outputs.dependency-names }}
-            Update: ${{ needs.metadata.outputs.previous-version }} → ${{ needs.metadata.outputs.new-version }}
+            Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}
+            Dependency: ${{ steps.metadata.outputs.dependency-names }}
+            Update: ${{ steps.metadata.outputs.previous-version }} → ${{ steps.metadata.outputs.new-version }}
             PR: ${{ github.event.pull_request.html_url }}
 
             There is no local checkout of the repository. Use `gh pr diff` and
@@ -171,3 +130,25 @@ jobs:
             --disallowedTools "Bash(gh pr review --approve:*),Bash(gh pr review -a:*)"
             --max-turns 50
 
+      - name: Auto-merge patch
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            This patch update was merged automatically since patch-level
+            changes carry minimal risk of breaking existing functionality.
+
+            Compatibility score: ${{ steps.metadata.outputs.compatibility-score }}%
+
+      - name: Auto-merge minor
+        if: steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            This minor update was reviewed by Claude before merging.
+
+            Compatibility score: ${{ steps.metadata.outputs.compatibility-score }}%
