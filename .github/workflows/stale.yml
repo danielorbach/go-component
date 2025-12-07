@@ -41,3 +41,5 @@ jobs:
             Remove the stale label or comment to keep it open, otherwise it will be closed in 7 days.
           close-issue-message: This issue was closed because it has been inactive for 35 days.
 
+          include-only-assigned: true
+
