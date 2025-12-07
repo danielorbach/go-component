@@ -3,6 +3,8 @@
 # Automatically labels and closes inactive issues and pull requests to keep the
 # repository tidy. Runs daily at 03:32 UTC.
 #
+# Only assigned items are processed; unassigned items are pending triage.
+#
 # Pull requests: marked stale after 14 days, closed after 7 more days (21 total)
 # Issues: marked stale after 28 days, closed after 7 more days (35 total)
 #
@@ -11,6 +13,12 @@
 name: "⏳ Stale"
  
 on:
+  workflow_dispatch:
+    inputs:
+      debug-only:
+        description: Debug only
+        type: boolean
+        default: true
   schedule:
     - cron: '32 3 * * *'
  
@@ -42,4 +50,6 @@ jobs:
           close-issue-message: This issue was closed because it has been inactive for 35 days.
 
           include-only-assigned: true
+
+          debug-only: ${{ github.event.inputs.debug-only || false }}
 
