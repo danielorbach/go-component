@@ -1,0 +1,24 @@
+# Configure automatically generated release notes
+#
+# Note that the order of categories is important, as they are rendered in the
+# order they are defined here. Each pull-request is assigned to the first
+# category that matches any of its labels. If no category matches, the pull
+# request is not included in the release notes.
+#
+# See <https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes>.
+
+changelog:
+  categories:
+    # This catch-all category ensures that no changes are omitted.
+    - title: ":tada: Contributions"
+      labels:
+        - '*'
+      exclude:
+        labels:
+          - dependencies
+
+    # Finally, show dependency updates.
+    - title: ":dependabot: Dependencies"
+      labels:
+        - dependencies
+
