@@ -3,6 +3,8 @@
 # Automatically labels and closes inactive issues and pull requests to keep the
 # repository tidy. Runs daily at 03:32 UTC.
 #
+# Only assigned items are processed; unassigned items are pending triage.
+#
 # Pull requests: marked stale after 14 days, closed after 7 more days (21 total)
 # Issues: marked stale after 28 days, closed after 7 more days (35 total)
 #
