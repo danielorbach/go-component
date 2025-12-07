@@ -13,6 +13,12 @@
 name: "⏳ Stale"
  
 on:
+  workflow_dispatch:
+    inputs:
+      debug-only:
+        description: Debug only
+        type: boolean
+        default: true
   schedule:
     - cron: '32 3 * * *'
  
@@ -44,4 +50,6 @@ jobs:
           close-issue-message: This issue was closed because it has been inactive for 35 days.
 
           include-only-assigned: true
+
+          debug-only: ${{ github.event.inputs.debug-only || false }}
 
