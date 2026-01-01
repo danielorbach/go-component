@@ -57,5 +57,7 @@ jobs:
           # Allow Claude to use Go tooling (git and gh commands are pre-approved)
           # See https://docs.claude.com/en/docs/claude-code/cli-reference for available options
           # WebSearch and WebFetch are enabled to allow Claude to research documentation and best practices
-          claude_args: '--allowedTools "Bash(go:*),WebSearch,WebFetch"'
+          claude_args: |
+            --allowedTools "Bash(go:*)"
+            --allowedTools "WebSearch,WebFetch"
 
