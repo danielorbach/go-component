@@ -94,6 +94,11 @@ jobs:
 
             Use `gh pr diff` and `gh pr view` to review the changes.
 
+            Before reviewing, check whether you have already reviewed this PR
+            by running `gh pr view --json reviews`. If a prior approval from
+            you exists and the diff has not materially changed, skip the review
+            and exit early.
+
             Minor updates should be backwards-compatible. However, for v0.x
             dependencies, minor bumps may contain breaking changes per semver.
             Review those with extra caution.
@@ -126,6 +131,12 @@ jobs:
             PR: ${{ github.event.pull_request.html_url }}
 
             Use `gh pr diff` and `gh pr view` to review the changes.
+
+            Before reviewing, check whether you have already reviewed this PR
+            by running `gh pr view --json reviews`. If a prior review comment
+            from you exists, compare your new analysis against it. If the
+            conclusions are substantially the same, skip posting and exit early.
+            Only post a new review if your analysis has materially changed.
 
             Major updates may have breaking changes. Please:
 
