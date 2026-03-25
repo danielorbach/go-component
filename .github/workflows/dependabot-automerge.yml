@@ -187,6 +187,8 @@ jobs:
 
             Compatibility score: ${{ steps.metadata.outputs.compatibility-score }}%
 
+            Auto-merged-by: ClauDependabot
+
       - name: Auto-merge minor
         if: steps.metadata.outputs.update-type == 'version-update:semver-minor'
         run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
@@ -197,3 +199,19 @@ jobs:
             This minor update was reviewed by Claude before merging.
 
             Compatibility score: ${{ steps.metadata.outputs.compatibility-score }}%
+
+            Auto-merged-by: ClauDependabot
+
+      - name: Auto-merge major
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL" --body "$BODY"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            This major update was reviewed by Claude and approved by a human
+            before merging.
+
+            Compatibility score: ${{ steps.metadata.outputs.compatibility-score }}%
+
+            Auto-merged-by: ClauDependabot
