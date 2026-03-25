@@ -1,18 +1,17 @@
 # Dependabot Auto-merge Workflow
 #
-# Patch and minor updates enable auto-merge; major updates require human merge:
+# All bump levels enable auto-merge; major updates require human approval:
 # - Patch: auto-approved (low-risk)
 # - Minor: Claude reviews, approves if acceptable
-# - Major: Claude advises, human must approve and merge
+# - Major: Claude advises, human must approve; merge job cleans up the commit
 #
-#   ┌────────────────────────────────────────────────────────────────────┐
-#   │                         Review & Merge                             │
-#   ├────────────────────────────────────────────────────────────────────┤
-#   │ 1. Fetch metadata                                                  │
-#   │ 2. Auto-approve patch ──────────────────────> 5. Auto-merge patch  │
-#   │ 3. Claude review minor ─────────────────────> 6. Auto-merge minor  │
-#   │ 4. Claude review major ─────────────────────> (human merge)        │
-#   └────────────────────────────────────────────────────────────────────┘
+#             ┌────────────────────────────┬───────────────┐
+#             │          Review            │     Merge     │
+#             ├────────────────────────────┼───────────────┤
+#   patch ────┤ approve ─────────────────┐ │               │
+#   minor ────┤ Claude review ── approve ┼─┼─ squash-merge │
+#   major ────┤ Claude analysis ── human ┘ │               │
+#             └────────────────────────────┴───────────────┘
 #
 # Squash commits default to using the PR description as body, but Dependabot
 # PRs include lengthy changelogs and compatibility notes. Each step overrides
@@ -43,21 +42,20 @@ on:
       - "go.sum"
       - ".github/workflows/**"
 
-permissions:
-  contents: write # Required by: gh pr merge --auto
-  pull-requests: write # Required by: gh pr review --approve
-  id-token: write # Required for Claude to generate GitHub app tokens
-
 jobs:
-  mergeview:
-    name: Review & Merge
-    runs-on: ubuntu-slim
+  review:
+    name: Review
+    runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
+    permissions:
+      pull-requests: write # Required by: gh pr review --approve
+      id-token: write # Required for Claude to generate GitHub app tokens
+      contents: read # Required by: actions/checkout
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          # The review steps grant no write scope to contents, but
+          # The review job grants no write scope to contents, but
           # persist-credentials: false ensures the Claude agent cannot
           # use the automatic GITHUB_TOKEN to push even if permissions
           # change later.
@@ -160,6 +158,22 @@ jobs:
             --allowedTools "WebFetch,WebSearch"
             --disallowedTools "Bash(gh pr review --approve:*),Bash(gh pr review -a:*)"
             --max-turns 50
+
+  merge:
+    name: Merge
+    runs-on: ubuntu-slim
+    needs: review
+    if: github.actor == 'dependabot[bot]'
+    permissions:
+      contents: write # Required by: gh pr merge --auto
+      pull-requests: write # Required by: gh pr merge --auto
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          compat-lookup: true
 
       - name: Auto-merge patch
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
