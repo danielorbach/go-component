@@ -17,6 +17,14 @@
 # Squash commits default to using the PR description as body, but Dependabot
 # PRs include lengthy changelogs and compatibility notes. Each step overrides
 # the body to keep commit messages clean.
+#
+# Prompt injection: claude-code-action steps can be susceptible to prompt
+# injection when triggered by untrusted actors (e.g. arbitrary issue
+# commenters). The review job's actor gate restricts execution to the
+# dependabot[bot] actor, which is a trusted first-party automation source.
+# Claude may still fetch external content during analysis (changelogs,
+# release notes), but gating on a trusted actor is considered a sufficient
+# mitigation for the Step Summary rendering surface.
 
 name: "🤖 ClauDependabot"
 
@@ -31,14 +39,14 @@ on:
     # Path filter avoids creating workflow runs for unrelated PRs while still
     # catching all Dependabot updates (Go modules and GitHub Actions).
     paths:
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/**'
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/**"
 
 permissions:
-  contents: write       # Required by: gh pr merge --auto
-  pull-requests: write  # Required by: gh pr review --approve
-  id-token: write       # Required for Claude to generate GitHub app tokens
+  contents: write # Required by: gh pr merge --auto
+  pull-requests: write # Required by: gh pr review --approve
+  id-token: write # Required for Claude to generate GitHub app tokens
 
 jobs:
   mergeview:
@@ -65,6 +73,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: dependabot
           # Git credential errors ("fatal: not in a git directory") appear because
           # there's no local checkout. These are harmless and ignored by the action.
           # Enabling commit signing avoids the error but enables Claude to commit
@@ -95,6 +104,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: dependabot
           # Git credential errors ("fatal: not in a git directory") appear because
           # there's no local checkout. These are harmless and ignored by the action.
           # Enabling commit signing avoids the error but enables Claude to commit
