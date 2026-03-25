@@ -94,9 +94,12 @@ jobs:
 
             Use `gh pr diff` and `gh pr view` to review the changes.
 
-            Minor updates should be backwards-compatible. If the changes look
-            reasonable, approve the PR with a message that includes your model
-            identifier (e.g. "Reviewed by claude-sonnet-4-20250514").
+            Minor updates should be backwards-compatible. However, for v0.x
+            dependencies, minor bumps may contain breaking changes per semver.
+            Review those with extra caution.
+
+            If the changes look reasonable, approve the PR with a message that
+            includes your model identifier (e.g. "Reviewed by claude-sonnet-4-20250514").
 
             Use: gh pr review --approve --body "your message"
           claude_args: >-
@@ -104,6 +107,7 @@ jobs:
             --allowedTools "Bash(go:*)"
             --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*)"
             --allowedTools "Bash(gh issue:*),Bash(gh search:*),Bash(gh run:*),Bash(gh workflow:*),Bash(gh release:*)"
+            --allowedTools "WebFetch,WebSearch"
             --max-turns 25
 
       - name: Review major
