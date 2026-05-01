@@ -64,9 +64,7 @@ func StartHTTP(l *component.L, address string, monitor Monitor) {
 	// regardless of context state. This approach ensures that the server can adapt
 	// to various shutdown scenarios effectively, ensuring resources are released
 	// appropriately.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		select {
 		case <-l.Stopping():
 			if err := s.Shutdown(l.Context()); err != nil {
@@ -82,7 +80,7 @@ func StartHTTP(l *component.L, address string, monitor Monitor) {
 				slog.Error("shutdown http server", "error", err)
 			}
 		}
-	}()
+	})
 
 	// We must stack the listen and serve, to ensure we clean this resource.
 	wg.Add(1)
