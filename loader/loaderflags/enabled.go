@@ -87,7 +87,7 @@ func triStateFlag(fs *flag.FlagSet, name string) *triState {
 	return f
 }
 
-func (f *triState) Get() interface{} {
+func (f *triState) Get() any {
 	return *f == triStateTrue
 }
 
