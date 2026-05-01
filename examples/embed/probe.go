@@ -51,7 +51,7 @@ var ProbeComponent = &component.Descriptor{
 
 		return nil
 	},
-	OptionsType: reflect.TypeOf(ProbeOptions{}),
+	OptionsType: reflect.TypeFor[ProbeOptions](),
 	Aspects:     nil,
 	Interests:   []string{PongTarget},
 }
