@@ -63,7 +63,7 @@ var PingComponent = &component.Descriptor{
 
 		return nil
 	},
-	OptionsType: reflect.TypeOf(PingOptions{}),
+	OptionsType: reflect.TypeFor[PingOptions](),
 	Aspects:     []string{PingTarget},
 	Interests:   nil,
 }

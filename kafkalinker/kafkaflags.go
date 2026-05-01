@@ -102,8 +102,8 @@ func (f *ConfigFlag) Set(s string) error {
 func (f *ConfigFlag) findFieldByName(key string) (field reflect.Value, ok bool) {
 	value := reflect.ValueOf(f).Elem() // Start with the ConfigFlag underlying value.
 
-	for _, name := range strings.Split(key, ".") {
-		if value.Kind() == reflect.Ptr {
+	for name := range strings.SplitSeq(key, ".") {
+		if value.Kind() == reflect.Pointer {
 			if value.IsNil() {
 				// Can't dereference empty pointer, returning empty field.
 				return reflect.Value{}, false

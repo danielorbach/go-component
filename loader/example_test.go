@@ -137,7 +137,7 @@ var SourceComponent = &component.Descriptor{
 	// some loaders use the options-type to during construction of footprints from
 	// text to unmarshal the appropriate options for each component. the loader
 	// package does not use this field.
-	OptionsType: reflect.TypeOf(SourceOptions{}),
+	OptionsType: reflect.TypeFor[SourceOptions](),
 	// a component declares the aspects it will publish. at this time, this field is
 	// not used by the loader package and provides for expressiveness.
 	Aspects: []string{Linkage},

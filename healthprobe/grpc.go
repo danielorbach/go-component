@@ -55,9 +55,7 @@ func StartGRPC(l *component.L, lis net.Listener, monitor Monitor) {
 	// signal via the abort channel, which initiates an immediate stop regardless of
 	// context state. This approach ensures that the server can adapt to various
 	// stopping scenarios effectively, ensuring resources are released appropriately.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		select {
 		case <-l.Stopping():
 			s.GracefulStop()
@@ -66,7 +64,7 @@ func StartGRPC(l *component.L, lis net.Listener, monitor Monitor) {
 		case <-abort:
 			s.Stop()
 		}
-	}()
+	})
 
 	// We must stack the listen and serve, to ensure we clean this resource.
 	wg.Add(1)
