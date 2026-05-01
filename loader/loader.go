@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	gotrace "runtime/trace"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -276,12 +277,7 @@ func (f *forkGroup) Wait(ctx context.Context) (ready int) {
 }
 
 func IsEnabled(d *component.Descriptor) bool {
-	for i := range Descriptors {
-		if d == Descriptors[i] {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(Descriptors, d)
 }
 
 type Footprint struct {
