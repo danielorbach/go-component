@@ -99,7 +99,7 @@ func ExtractDoc(content, name string) (string, error) {
 	if f.Doc == nil {
 		return "", fmt.Errorf("the Go source file has no package doc comment")
 	}
-	for _, section := range strings.Split(f.Doc.Text(), "\n# ") {
+	for section := range strings.SplitSeq(f.Doc.Text(), "\n# ") {
 		if body := strings.TrimPrefix(section, "Service "+name); body != section &&
 			body != "" &&
 			body[0] == '\r' || body[0] == '\n' {
