@@ -71,7 +71,7 @@ func (m signalMiddleware) hardStop(l *component.L) {
 	signal.Notify(sig, os.Interrupt)
 	defer signal.Stop(sig)
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-sig:
 		case <-l.Done():

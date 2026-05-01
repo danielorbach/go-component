@@ -73,12 +73,12 @@ func TestL_Run(t *testing.T) {
 		const goroutines = 16
 		RunProc(func(l *L) {
 			done := make(chan struct{})
-			for i := 0; i < goroutines; i++ {
+			for i := range goroutines {
 				l.Go("child#"+strconv.Itoa(i), func(l *L) {
 					done <- struct{}{}
 				})
 			}
-			for i := 0; i < goroutines; i++ {
+			for range goroutines {
 				select {
 				case <-done:
 				case <-time.After(SyncTimeout):
@@ -111,7 +111,7 @@ func TestL_Cleanup(t *testing.T) {
 		const count = 100
 		order := make(map[int]int) // map: cleanupFn#index -> called order
 		RunProc(func(l *L) {
-			for i := 0; i < count; i++ {
+			for i := range count {
 				index := i
 				l.Cleanup(func() {
 					order[index] = len(order)
@@ -197,7 +197,7 @@ func TestL_Fatal(t *testing.T) {
 			t.Run(fmt.Sprintf("ConcurrentCalls=%d", goroutines), func(t *testing.T) {
 				RunProc(func(l *L) {
 					done := make(chan struct{})
-					for i := 0; i < goroutines; i++ {
+					for i := range goroutines {
 						go func(index int) {
 							defer func() { done <- struct{}{} }()
 							l.Fatal(fmt.Errorf("test error from goroutine #%d", index))
@@ -207,7 +207,7 @@ func TestL_Fatal(t *testing.T) {
 					// pay attention to the fact that we're still in the primary goroutine
 					// of the lifecycle - calls to L.Fatal from other goroutines do not
 					// (and cannot) affect the primary goroutine.
-					for i := 0; i < goroutines; i++ {
+					for range goroutines {
 						select {
 						case <-done:
 						case <-time.After(SyncTimeout):
