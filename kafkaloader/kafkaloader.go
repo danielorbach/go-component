@@ -86,8 +86,16 @@ func (x Loader) Exec(l *component.L) {
 }
 
 func handleFootprint(l *component.L, msg *sarama.ConsumerMessage) {
+	// l.Context() detaches from the lifecycle span, so this is the root of an
+	// independent per-message trace — its size is bounded by the work done for
+	// one footprint, not by loader uptime. The span link points back to the
+	// lifecycle span for navigation in the trace backend.
+	//
 	// TODO: link to producer span
-	_, span := tracer.Start(l.Context(), "handleFootprint", trace.WithSpanKind(trace.SpanKindConsumer))
+	_, span := tracer.Start(l.Context(), "handleFootprint",
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithLinks(trace.Link{SpanContext: l.Span().SpanContext()}),
+	)
 	defer span.End()
 
 	fp, err := fileloader.UnmarshalFootprintJSON(msg.Value)

@@ -102,7 +102,10 @@ func Load(footprint Footprint, opts ...component.Option) {
 }
 
 func loadSharedResources(l *component.L) {
-	_, span := tracer.Start(l.Context(), "Load.SharedResources")
+	// The loader is the one place where short-lived setup spans are nested
+	// under the lifecycle span: this is one-shot work whose count is bounded
+	// by the loader's own Bootstrap, not by message volume.
+	_, span := tracer.Start(trace.ContextWithSpan(l.Context(), l.Span()), "Load.SharedResources")
 	defer span.End()
 
 	if CPUProfile != "" {
@@ -180,7 +183,7 @@ func loadSharedResources(l *component.L) {
 }
 
 func loadFootprintComponents(l *component.L, footprint Footprint) {
-	_, span := tracer.Start(l.Context(), "Load.FootprintComponents")
+	_, span := tracer.Start(trace.ContextWithSpan(l.Context(), l.Span()), "Load.FootprintComponents")
 	defer span.End()
 
 	// TODO: skip loading based on Location
@@ -324,8 +327,7 @@ func (c *Claim) Exec(l *component.L) {
 		panic("loaded claim can be executed only once")
 	}
 
-	span := trace.SpanFromContext(l.Context())
-	span.SetAttributes(
+	l.Span().SetAttributes(
 		attribute.String("component.name", c.Component.Name),
 		attribute.String("component.binding", fmt.Sprintf("%+v", c.Binding)),
 		attribute.String("component.options", fmt.Sprintf("%+v", c.Options)),

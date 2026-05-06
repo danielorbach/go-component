@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // TODO(@danielorbach): We think we can move Run() to lifecycle, let's consider
@@ -41,14 +42,25 @@ func execute(ctx context.Context, options lifecycleOptions) {
 	pprof.Do(ctx, pprof.Labels("component.name", options.Name()), func(ctx context.Context) {
 		done := make(chan struct{}) // make ahead of &L for better readability
 
+		// The lifecycle span captures observability for the lifecycle event itself
+		// (started, completed, errors). It is intentionally NOT propagated through
+		// l.Context(): handlers and other per-iteration work that derive spans from
+		// l.Context() should produce traces bounded by the work done per invocation,
+		// not by component uptime. The span is held on L for direct interaction
+		// (L.Error, L.Fatal, L.Span); child lifecycle spans nest under it via Fork,
+		// which re-attaches it to the context handed to the child execute.
+		//
 		// TODO: attach caller-defined attributes to the span
-		ctx, span := tracer.Start(ctx, options.SpanName())
+		_, span := tracer.Start(ctx, options.SpanName())
 		// the span ends when the lifecycle completes - this must be done asynchronously
 		go pprof.Do(ctx, pprof.Labels("component.reaper", "span"), func(context.Context) {
 			<-done
 			span.End()
 		})
 
+		// Detach any inherited lifecycle span from the user-facing ctx so spans
+		// started from l.Context() are roots of bounded traces.
+		ctx = trace.ContextWithSpan(ctx, noop.Span{})
 		ctx, cancel := context.WithCancelCause(ctx)
 		// do not leak a context.Context
 		go pprof.Do(ctx, pprof.Labels("component.reaper", "context"), func(context.Context) {
@@ -73,6 +85,7 @@ func execute(ctx context.Context, options lifecycleOptions) {
 			ctx:      ctx,
 			cancel:   cancel,
 			graceCtx: graceCtx,
+			span:     span,
 			done:     done,
 			common: common{
 				logger:         options.Logger(),
@@ -135,6 +148,13 @@ type L struct {
 	cancel   context.CancelCauseFunc
 	graceCtx context.Context // cancelled when stopping is closed
 
+	// span is the lifecycle span. It is not propagated through ctx; spans
+	// started from l.Context() are roots, bounded to per-invocation work.
+	// See Span() for how to interact with it (set attributes, link from
+	// per-handler traces) and the package documentation for the framework's
+	// tracing contract.
+	span trace.Span
+
 	done chan struct{} // closed when all lifecycle goroutines and cleanup functions have finished
 	wg   sync.WaitGroup
 
@@ -172,6 +192,22 @@ func (l *L) GraceContext() context.Context {
 
 func (l *L) Done() <-chan struct{} {
 	return l.done
+}
+
+// Span returns the lifecycle span. Its lifetime spans the entire component
+// uptime, so it must NOT be used as a parent for per-handler or per-iteration
+// work — that would produce traces that grow without bound and saturate trace
+// backends. Use it to record lifecycle observability (attributes, events,
+// errors) and to link short-lived handler traces back to the lifecycle for
+// navigation in trace backends:
+//
+//	_, handler := tracer.Start(l.Context(), "consume",
+//		trace.WithLinks(trace.Link{SpanContext: l.Span().SpanContext()}))
+//
+// Spans started from l.Context() are roots of independent traces — that is the
+// per-handler scope. The lifecycle span is the lifecycle scope.
+func (l *L) Span() trace.Span {
+	return l.span
 }
 
 // exec should be called in its own goroutine and only once.
@@ -268,7 +304,12 @@ func (l *L) Fork(name string, procedure Procedure, opts ...ForkOption) {
 	}
 
 	l.wg.Add(1)
-	go pprof.Do(l.ctx, pprof.Labels("parent-component", l.name), func(ctx context.Context) {
+	// Re-attach the lifecycle span so the child's lifecycle span nests under
+	// it. Lifecycle spans are the only spans the framework guarantees nest
+	// (parent-component to child-component); per-handler spans started from
+	// l.Context() are roots by design. See package documentation.
+	forkCtx := trace.ContextWithSpan(l.ctx, l.span)
+	go pprof.Do(forkCtx, pprof.Labels("parent-component", l.name), func(ctx context.Context) {
 		defer l.wg.Done()
 		fullName := l.name + "/" + name // the child's name is appended to that of the parent (also used for tracing)
 		options := lifecycleOptions{
@@ -397,8 +438,7 @@ func (l *L) Log(args ...any) {
 
 func (l *L) Error(err error) {
 	l.Logf("error: %v", err)
-	span := trace.SpanFromContext(l.ctx)
-	span.RecordError(err)
+	l.span.RecordError(err)
 }
 
 func (l *L) Errorf(format string, a ...any) {
@@ -425,9 +465,8 @@ func (l *L) Fatal(err error) {
 
 	l.Logf("fatal error: %v", err)
 	// marking the span as errored is a good practice
-	span := trace.SpanFromContext(l.ctx)
-	span.RecordError(err)
-	span.SetStatus(codes.Error, err.Error())
+	l.span.RecordError(err)
+	l.span.SetStatus(codes.Error, err.Error())
 	// cancel the lifecycle context because a fatal error is unrecoverable, hence
 	// there is no point in continuing.
 	l.cancel(fmt.Errorf("fatality: %w", err))
