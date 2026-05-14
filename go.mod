@@ -3,7 +3,7 @@ module github.com/danielorbach/go-component
 go 1.25.0
 
 require (
-	github.com/IBM/sarama v1.48.1
+	github.com/IBM/sarama v1.48.2
 	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
