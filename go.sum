@@ -11,8 +11,8 @@ cloud.google.com/go/pubsub v1.50.1 h1:fzbXpPyJnSGvWXF1jabhQeXyxdbCIkXTpjXHy7xviB
 cloud.google.com/go/pubsub v1.50.1/go.mod h1:6YVJv3MzWJUVdvQXG081sFvS0dWQOdnV+oTo++q/xFk=
 cloud.google.com/go/pubsub/v2 v2.3.0 h1:DgAN907x+sP0nScYfBzneRiIhWoXcpCD8ZAut8WX9vs=
 cloud.google.com/go/pubsub/v2 v2.3.0/go.mod h1:O5f0KHG9zDheZAd3z5rlCRhxt2JQtB+t/IYLKK3Bpvw=
-github.com/IBM/sarama v1.48.2 h1:QKUXRaHF46aoRwagtvDR/imrOdbdV/qWzv0u6e5my+w=
-github.com/IBM/sarama v1.48.2/go.mod h1:m/Q1aFezH82/AglfTpJbw/fO0ZybYXhPgTmvajiZX50=
+github.com/IBM/sarama v1.49.0 h1:FhLbVia5yi426qttj0kNTI86vPc3v+/3mGHkif1Fsao=
+github.com/IBM/sarama v1.49.0/go.mod h1:m/Q1aFezH82/AglfTpJbw/fO0ZybYXhPgTmvajiZX50=
 github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ=
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
 github.com/aws/aws-sdk-go-v2 v1.40.0 h1:/WMUA0kjhZExjOQN2z3oLALDREea1A7TobfuiBrKlwc=
