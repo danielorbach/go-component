@@ -464,12 +464,9 @@ func TestL_Terminate(t *testing.T) {
 }
 
 func TestL_Stop(t *testing.T) {
-	t.Parallel() // parallel because of a subtest which must time out to pass (also parallel)
-
 	// the following test verifies Stop() honors its timeout parameter
 	// (crucial for the next test to work)
 	t.Run("Ignored", func(t *testing.T) {
-		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			// in order to "ignore" the Stop() call,
 			// we must block RunProc() until Stop() returns
@@ -488,7 +485,6 @@ func TestL_Stop(t *testing.T) {
 	})
 
 	t.Run("Respected", func(t *testing.T) {
-		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			stopped := make(chan bool, 1)
 			var signalled atomic.Bool // only used for logging
@@ -511,7 +507,6 @@ func TestL_Stop(t *testing.T) {
 	})
 
 	t.Run("Concurrent", func(t *testing.T) {
-		t.Parallel()
 		// start multiple Stop() calls concurrently with different timeouts
 		timeouts := []time.Duration{18 * time.Millisecond, 36 * time.Millisecond, 180 * time.Millisecond}
 		// we do the actual testing within a call to RunProc()
@@ -536,7 +531,6 @@ func TestL_Stop(t *testing.T) {
 	})
 
 	t.Run("ChildLifecycle", func(t *testing.T) {
-		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			stopped := make(chan bool)
 			ready := make(chan struct{})
