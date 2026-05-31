@@ -186,58 +186,64 @@ func TestL_Cleanup(t *testing.T) {
 
 func TestL_Fatal(t *testing.T) {
 	t.Run("CalledFromNestedFunctions", func(t *testing.T) {
-		RunProc(func(l *L) {
-			func() {
+		synctest.Test(t, func(t *testing.T) {
+			RunProc(func(l *L) {
 				func() {
 					func() {
-						l.Fatal(fmt.Errorf("test error"))
-						t.Fatal("L.Fatal() should have aborted execution (nesting level 0)")
+						func() {
+							l.Fatal(fmt.Errorf("test error"))
+							t.Fatal("L.Fatal() should have aborted execution (nesting level 0)")
+						}()
+						t.Error("L.Fatal() should have aborted execution (nesting level -1)")
 					}()
-					t.Error("L.Fatal() should have aborted execution (nesting level -1)")
+					t.Error("L.Fatal() should have aborted execution (nesting level -2)")
 				}()
-				t.Error("L.Fatal() should have aborted execution (nesting level -2)")
-			}()
-			t.Error("L.Fatal() should have aborted execution (nesting level -3)")
-		}, WithName(t.Name()))
+				t.Error("L.Fatal() should have aborted execution (nesting level -3)")
+			}, WithName(t.Name()))
+		})
 	})
 
 	t.Run("CalledFromMultipleGoroutines", func(t *testing.T) {
 		for _, goroutines := range []int{1, 2, 16} {
 			t.Run(fmt.Sprintf("ConcurrentCalls=%d", goroutines), func(t *testing.T) {
-				RunProc(func(l *L) {
-					done := make(chan struct{})
-					for i := range goroutines {
-						go func(index int) {
-							defer func() { done <- struct{}{} }()
-							l.Fatal(fmt.Errorf("test error from goroutine #%d", index))
-							t.Errorf("goroutine #%d: L.Fatal() should have aborted execution", index)
-						}(i)
-					}
-					// pay attention to the fact that we're still in the primary goroutine
-					// of the lifecycle - calls to L.Fatal from other goroutines do not
-					// (and cannot) affect the primary goroutine.
-					for range goroutines {
-						select {
-						case <-done:
-						case <-time.After(SyncTimeout):
-							t.Fatal("timeout: L.Fatal() did not call deferred functions in goroutines")
+				synctest.Test(t, func(t *testing.T) {
+					RunProc(func(l *L) {
+						done := make(chan struct{})
+						for i := range goroutines {
+							go func(index int) {
+								defer func() { done <- struct{}{} }()
+								l.Fatal(fmt.Errorf("test error from goroutine #%d", index))
+								t.Errorf("goroutine #%d: L.Fatal() should have aborted execution", index)
+							}(i)
 						}
-					}
-				}, WithName(t.Name()))
+						// pay attention to the fact that we're still in the primary goroutine
+						// of the lifecycle - calls to L.Fatal from other goroutines do not
+						// (and cannot) affect the primary goroutine.
+						for range goroutines {
+							select {
+							case <-done:
+							case <-time.After(SyncTimeout):
+								t.Fatal("timeout: L.Fatal() did not call deferred functions in goroutines")
+							}
+						}
+					}, WithName(t.Name()))
+				})
 			})
 		}
 	})
 
 	t.Run("CallsCleanupFunctions", func(t *testing.T) {
-		var called bool
-		RunProc(func(l *L) {
-			l.Cleanup(func() { called = true })
-			l.Fatal(fmt.Errorf("test error"))
-			t.Error("L.Fatal() should have aborted execution")
-		}, WithName(t.Name()))
-		if !called {
-			t.Error("Cleanup() function should have been called")
-		}
+		synctest.Test(t, func(t *testing.T) {
+			var called bool
+			RunProc(func(l *L) {
+				l.Cleanup(func() { called = true })
+				l.Fatal(fmt.Errorf("test error"))
+				t.Error("L.Fatal() should have aborted execution")
+			}, WithName(t.Name()))
+			if !called {
+				t.Error("Cleanup() function should have been called")
+			}
+		})
 	})
 
 	t.Run("CalledFromCleanupFunction", func(t *testing.T) {
@@ -246,22 +252,24 @@ func TestL_Fatal(t *testing.T) {
 		// Cleanup() function, we test the other side of the coin as well
 		// to ensure this test does not pass by accident due to human error.
 		var calledBeforeFatal, calledAfterFatal bool
-		RunProc(func(l *L) {
-			l.Cleanup(func() {
-				// scheduled before Fatal(), but executed after because
-				// cleanup functions are executed in reverse order
-				calledAfterFatal = true
-			})
-			l.Cleanup(func() {
-				l.Fatal(fmt.Errorf("test error"))
-				t.Error("L.Fatal() should have aborted execution of this Cleanup() function")
-			})
-			l.Cleanup(func() {
-				// scheduled after Fatal(), but executed before because
-				// cleanup functions are executed in reverse order
-				calledBeforeFatal = true
-			})
-		}, WithName(t.Name()))
+		synctest.Test(t, func(t *testing.T) {
+			RunProc(func(l *L) {
+				l.Cleanup(func() {
+					// scheduled before Fatal(), but executed after because
+					// cleanup functions are executed in reverse order
+					calledAfterFatal = true
+				})
+				l.Cleanup(func() {
+					l.Fatal(fmt.Errorf("test error"))
+					t.Error("L.Fatal() should have aborted execution of this Cleanup() function")
+				})
+				l.Cleanup(func() {
+					// scheduled after Fatal(), but executed before because
+					// cleanup functions are executed in reverse order
+					calledBeforeFatal = true
+				})
+			}, WithName(t.Name()))
+		})
 		if !calledBeforeFatal {
 			t.Error("Cleanup() function should have been called before L.Fatal()")
 		}
@@ -304,35 +312,39 @@ func TestL_Fatal(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				RunProc(func(l *L) {
-					l.Cleanup(func() {
-						if !errors.Is(l.Context().Err(), context.Canceled) {
-							t.Error("context should have been canceled")
-						}
-						if cause := context.Cause(l.Context()); !errors.Is(cause, sentinel) {
-							t.Logf("context error: %q", cause)
-							t.Error("context should have been canceled with the sentinel error")
-						}
-					})
-					tt.fn(l)
-				}, WithName(t.Name()))
+				synctest.Test(t, func(t *testing.T) {
+					RunProc(func(l *L) {
+						l.Cleanup(func() {
+							if !errors.Is(l.Context().Err(), context.Canceled) {
+								t.Error("context should have been canceled")
+							}
+							if cause := context.Cause(l.Context()); !errors.Is(cause, sentinel) {
+								t.Logf("context error: %q", cause)
+								t.Error("context should have been canceled with the sentinel error")
+							}
+						})
+						tt.fn(l)
+					}, WithName(t.Name()))
+				})
 			})
 		}
 	})
 
 	t.Run("CalledAfterCompletion", func(t *testing.T) {
-		// capture l variable to simulate a closure over it
-		// (may happen in real code when storing a reference to
-		// the lifecycle)
-		var capture *L
-		RunProc(func(l *L) { capture = l }, WithName(t.Name()))
-		// calling L.Fatal after the lifecycle has completed should panic
-		defer func() {
-			if reason := recover(); reason == nil {
-				t.Error("L.Fatal() must panic if called after component completion")
-			}
-		}()
-		capture.Fatal(fmt.Errorf("test error"))
+		synctest.Test(t, func(t *testing.T) {
+			// capture l variable to simulate a closure over it
+			// (may happen in real code when storing a reference to
+			// the lifecycle)
+			var capture *L
+			RunProc(func(l *L) { capture = l }, WithName(t.Name()))
+			// calling L.Fatal after the lifecycle has completed should panic
+			defer func() {
+				if reason := recover(); reason == nil {
+					t.Error("L.Fatal() must panic if called after component completion")
+				}
+			}()
+			capture.Fatal(fmt.Errorf("test error"))
+		})
 	})
 }
 
