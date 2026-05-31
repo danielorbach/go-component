@@ -384,60 +384,68 @@ func TestL_Context(t *testing.T) {
 
 func TestL_Name(t *testing.T) {
 	t.Run("Empty", func(t *testing.T) {
-		RunProc(func(l *L) {
-			if l.Name() != "" {
-				t.Errorf("parent Name() = %q, want %q", l.Name(), "")
-			}
-			// see child initialization for why this is "/"
-			l.Go("", func(l *L) {
-				if l.Name() != "/" {
-					t.Errorf("child Name() = %q, want %q", l.Name(), "./")
+		synctest.Test(t, func(t *testing.T) {
+			RunProc(func(l *L) {
+				if l.Name() != "" {
+					t.Errorf("parent Name() = %q, want %q", l.Name(), "")
 				}
-			})
-		}, WithName(""))
+				// see child initialization for why this is "/"
+				l.Go("", func(l *L) {
+					if l.Name() != "/" {
+						t.Errorf("child Name() = %q, want %q", l.Name(), "./")
+					}
+				})
+			}, WithName(""))
+		})
 	})
 
 	t.Run("Sanity", func(t *testing.T) {
-		RunProc(func(l *L) {
-			if l.Name() != "TestLifecycle" {
-				t.Errorf("Name() = %q, want %q", l.Name(), "TestLifecycle")
-			}
-			l.Go("Child", func(l *L) {
-				if l.Name() != "TestLifecycle/Child" {
-					t.Errorf("Name() = %q, want %q", l.Name(), "TestLifecycle/Child")
+		synctest.Test(t, func(t *testing.T) {
+			RunProc(func(l *L) {
+				if l.Name() != "TestLifecycle" {
+					t.Errorf("Name() = %q, want %q", l.Name(), "TestLifecycle")
 				}
-			})
-		}, WithName("TestLifecycle"))
+				l.Go("Child", func(l *L) {
+					if l.Name() != "TestLifecycle/Child" {
+						t.Errorf("Name() = %q, want %q", l.Name(), "TestLifecycle/Child")
+					}
+				})
+			}, WithName("TestLifecycle"))
+		})
 	})
 
 	t.Run("Spaces", func(t *testing.T) {
 		const name = "with spaces"
-		RunProc(func(l *L) {
-			if l.Name() != name {
-				t.Errorf("L.Name() = %q, want %q", l.Name(), name)
-			}
-			l.Go(name, func(l *L) {
-				const subname = "with spaces/with spaces"
-				if l.Name() != subname {
-					t.Errorf("L.Name() = %q, want %q", l.Name(), subname)
+		synctest.Test(t, func(t *testing.T) {
+			RunProc(func(l *L) {
+				if l.Name() != name {
+					t.Errorf("L.Name() = %q, want %q", l.Name(), name)
 				}
-			})
-		}, WithName(name))
+				l.Go(name, func(l *L) {
+					const subname = "with spaces/with spaces"
+					if l.Name() != subname {
+						t.Errorf("L.Name() = %q, want %q", l.Name(), subname)
+					}
+				})
+			}, WithName(name))
+		})
 	})
 
 	t.Run("Duplicate", func(t *testing.T) {
-		RunProc(func(l *L) {
-			l.Go("dup", func(l *L) {
-				if l.Name() != "/dup" {
-					t.Errorf("L.Name() = %q, want %q", l.Name(), "./dup")
-				}
-			})
-			l.Go("dup", func(l *L) {
-				if l.Name() != "/dup" {
-					t.Errorf("L.Name() = %q, want %q", l.Name(), "./dup")
-				}
-			})
-		}, WithName(""))
+		synctest.Test(t, func(t *testing.T) {
+			RunProc(func(l *L) {
+				l.Go("dup", func(l *L) {
+					if l.Name() != "/dup" {
+						t.Errorf("L.Name() = %q, want %q", l.Name(), "./dup")
+					}
+				})
+				l.Go("dup", func(l *L) {
+					if l.Name() != "/dup" {
+						t.Errorf("L.Name() = %q, want %q", l.Name(), "./dup")
+					}
+				})
+			}, WithName(""))
+		})
 	})
 }
 
