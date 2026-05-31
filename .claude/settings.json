@@ -8,6 +8,7 @@
     }
   },
   "enabledPlugins": {
-    "github-author@notorious-ai": true
+    "github-author@notorious-ai": true,
+    "golang-dev@notorious-ai": true
   }
 }
