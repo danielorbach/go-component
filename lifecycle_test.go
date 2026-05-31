@@ -108,8 +108,6 @@ func TestL_Run(t *testing.T) {
 }
 
 func TestL_Cleanup(t *testing.T) {
-	t.Parallel() // parallel because of a subtest which must time out to pass (also parallel)
-
 	t.Run("Order", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			const count = 100
@@ -151,7 +149,6 @@ func TestL_Cleanup(t *testing.T) {
 	})
 
 	t.Run("SynchronisesBeforeSubComponents", func(t *testing.T) {
-		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 180*time.Millisecond)
 			defer cancel()
