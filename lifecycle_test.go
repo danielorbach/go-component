@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -52,17 +53,19 @@ func TestDrivenDevelopment(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				var called bool
-				RunProc(func(l *L) {
-					tt.fn(l)
-					called = true
-				}, WithName(t.Name()))
-				if tt.wantAbort && called {
-					t.Error("execution should have been aborted")
-				}
-				if !tt.wantAbort && !called {
-					t.Error("execution should not have been aborted")
-				}
+				synctest.Test(t, func(t *testing.T) {
+					var called bool
+					RunProc(func(l *L) {
+						tt.fn(l)
+						called = true
+					}, WithName(t.Name()))
+					if tt.wantAbort && called {
+						t.Error("execution should have been aborted")
+					}
+					if !tt.wantAbort && !called {
+						t.Error("execution should not have been aborted")
+					}
+				})
 			})
 		}
 	})
