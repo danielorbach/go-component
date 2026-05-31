@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "notorious-ai": {
+      "source": {
+        "source": "github",
+        "repo": "notorious-ai/claude-plugins"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "github-author@notorious-ai": true,
+    "golang-dev@notorious-ai": true
+  }
+}
