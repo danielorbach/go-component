@@ -470,45 +470,49 @@ func TestL_Stop(t *testing.T) {
 	// (crucial for the next test to work)
 	t.Run("Ignored", func(t *testing.T) {
 		t.Parallel()
-		// in order to "ignore" the Stop() call,
-		// we must block RunProc() until Stop() returns
-		// although Stop() blocks, we block RunProc() until it returns
-		RunProc(func(l *L) {
-			stopped := make(chan bool, 1) // buffered to avoid deadlock with the Stop() goroutine
-			go func() {
-				stopped <- l.Stop(180 * time.Millisecond)
-			}()
-			// block the lifecycle until Stop() returns
-			select {
-			case ok := <-stopped:
-				if ok {
-					t.Error("Stop() should have failed")
+		synctest.Test(t, func(t *testing.T) {
+			// in order to "ignore" the Stop() call,
+			// we must block RunProc() until Stop() returns
+			// although Stop() blocks, we block RunProc() until it returns
+			RunProc(func(l *L) {
+				stopped := make(chan bool, 1) // buffered to avoid deadlock with the Stop() goroutine
+				go func() {
+					stopped <- l.Stop(180 * time.Millisecond)
+				}()
+				// block the lifecycle until Stop() returns
+				select {
+				case ok := <-stopped:
+					if ok {
+						t.Error("Stop() should have failed")
+					}
+				case <-time.After(SyncTimeout):
+					t.Error("timeout: Stop() should have returned by now")
 				}
-			case <-time.After(SyncTimeout):
-				t.Error("timeout: Stop() should have returned by now")
-			}
-		}, WithName(t.Name()))
+			}, WithName(t.Name()))
+		})
 	})
 
 	t.Run("Respected", func(t *testing.T) {
 		t.Parallel()
-		stopped := make(chan bool, 1)
-		var signalled atomic.Bool // only used for logging
-		RunProc(func(l *L) {
-			go func() {
-				// Stop() blocks, but we know it honors the given timeout
-				// because of the previous test ("Ignored")
-				stopped <- l.Stop(SyncTimeout)
-			}()
-			// returning after waiting for Stopping() to close
-			// completes the lifecycle
-			<-l.Stopping()
-			signalled.Store(true)
-		}, WithName(t.Name()))
-		if !<-stopped {
-			t.Logf("stop signal received = %v", signalled.Load())
-			t.Error("Stop() should have succeeded")
-		}
+		synctest.Test(t, func(t *testing.T) {
+			stopped := make(chan bool, 1)
+			var signalled atomic.Bool // only used for logging
+			RunProc(func(l *L) {
+				go func() {
+					// Stop() blocks, but we know it honors the given timeout
+					// because of the previous test ("Ignored")
+					stopped <- l.Stop(SyncTimeout)
+				}()
+				// returning after waiting for Stopping() to close
+				// completes the lifecycle
+				<-l.Stopping()
+				signalled.Store(true)
+			}, WithName(t.Name()))
+			if !<-stopped {
+				t.Logf("stop signal received = %v", signalled.Load())
+				t.Error("Stop() should have succeeded")
+			}
+		})
 	})
 
 	t.Run("Concurrent", func(t *testing.T) {
@@ -518,57 +522,61 @@ func TestL_Stop(t *testing.T) {
 		// we do the actual testing within a call to RunProc()
 		// because this guarantees that the lifecycle is not
 		// respecting its Stopped() signal.
-		RunProc(func(l *L) {
-			stopped := make(chan bool, len(timeouts))
-			for i := range timeouts {
-				go func(timeout time.Duration) {
-					stopped <- l.Stop(timeout)
-				}(timeouts[i])
-			}
-			// wait for all Stop() calls to return
-			timer := time.NewTimer(SyncTimeout)
-			defer timer.Stop()
-			for i := range timeouts {
-				select {
-				case ok := <-stopped:
-					if ok {
-						t.Errorf("Stop() should have failed (already stopped: %d/%d)", i, len(timeouts))
-					}
-				case <-timer.C:
-					t.Fatal("timeout: Stop() did not return")
+		synctest.Test(t, func(t *testing.T) {
+			RunProc(func(l *L) {
+				stopped := make(chan bool, len(timeouts))
+				for i := range timeouts {
+					go func(timeout time.Duration) {
+						stopped <- l.Stop(timeout)
+					}(timeouts[i])
 				}
-			}
-		}, WithName(t.Name()))
+				// wait for all Stop() calls to return
+				timer := time.NewTimer(SyncTimeout)
+				defer timer.Stop()
+				for i := range timeouts {
+					select {
+					case ok := <-stopped:
+						if ok {
+							t.Errorf("Stop() should have failed (already stopped: %d/%d)", i, len(timeouts))
+						}
+					case <-timer.C:
+						t.Fatal("timeout: Stop() did not return")
+					}
+				}
+			}, WithName(t.Name()))
+		})
 	})
 
 	t.Run("ChildLifecycle", func(t *testing.T) {
 		t.Parallel()
-		stopped := make(chan bool)
-		ready := make(chan struct{})
-		RunProc(func(l *L) {
-			go func() {
-				// stop parent-lifecycle immediately after the two
-				// child-lifecycles have been scheduled (by Go())
-				// because starting them after initiating the stop
-				// causes a panic.
-				<-ready
-				<-ready
-				stopped <- l.Stop(time.Second)
-			}()
+		synctest.Test(t, func(t *testing.T) {
+			stopped := make(chan bool)
+			ready := make(chan struct{})
+			RunProc(func(l *L) {
+				go func() {
+					// stop parent-lifecycle immediately after the two
+					// child-lifecycles have been scheduled (by Go())
+					// because starting them after initiating the stop
+					// causes a panic.
+					<-ready
+					<-ready
+					stopped <- l.Stop(time.Second)
+				}()
 
-			l.Go("child1", func(l *L) {
-				ready <- struct{}{}
-				<-l.Stopping() // wait for child-lifecycle to signal a stop
-			})
-			l.Go("child2", func(l *L) {
-				ready <- struct{}{}
-				<-l.Stopping() // wait for child-lifecycle to signal a stop
-			})
-			<-l.Stopping() // wait for parent-lifecycle to signal a stop
-		}, WithName(t.Name()))
-		if !<-stopped {
-			t.Error("Stop() should have succeeded")
-		}
+				l.Go("child1", func(l *L) {
+					ready <- struct{}{}
+					<-l.Stopping() // wait for child-lifecycle to signal a stop
+				})
+				l.Go("child2", func(l *L) {
+					ready <- struct{}{}
+					<-l.Stopping() // wait for child-lifecycle to signal a stop
+				})
+				<-l.Stopping() // wait for parent-lifecycle to signal a stop
+			}, WithName(t.Name()))
+			if !<-stopped {
+				t.Error("Stop() should have succeeded")
+			}
+		})
 	})
 }
 
