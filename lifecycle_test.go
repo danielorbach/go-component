@@ -1,4 +1,4 @@
-package component
+package component_test
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/danielorbach/go-component"
 )
 
 // SyncTimeout is the maximum time a test is allowed to wait for a
@@ -19,30 +21,30 @@ func TestDrivenDevelopment(t *testing.T) {
 	t.Run("FunctionExecution", func(t *testing.T) {
 		tests := []struct {
 			name      string
-			fn        func(*L)
+			fn        func(*component.L)
 			wantAbort bool
 		}{
 			{
 				name: "NoOp",
-				fn:   func(*L) {},
+				fn:   func(*component.L) {},
 			},
 			{
 				name: "Error",
-				fn: func(l *L) {
+				fn: func(l *component.L) {
 					l.Error(fmt.Errorf("test error"))
 				},
 				wantAbort: false,
 			},
 			{
 				name: "Fatal",
-				fn: func(l *L) {
+				fn: func(l *component.L) {
 					l.Fatal(fmt.Errorf("test error"))
 				},
 				wantAbort: true,
 			},
 			{
 				name: "FatalWhileCleanup",
-				fn: func(l *L) {
+				fn: func(l *component.L) {
 					l.Cleanup(func() {
 						l.Fatal(fmt.Errorf("test error"))
 					})
@@ -54,10 +56,10 @@ func TestDrivenDevelopment(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					var called bool
-					RunProc(func(l *L) {
+					component.RunProc(func(l *component.L) {
 						tt.fn(l)
 						called = true
-					}, WithName(t.Name()))
+					}, component.WithName(t.Name()))
 					if tt.wantAbort && called {
 						t.Error("execution should have been aborted")
 					}
@@ -74,17 +76,17 @@ func TestL_Run(t *testing.T) {
 	t.Run("Concurrent", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			const goroutines = 16
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				done := make(chan struct{})
 				for i := range goroutines {
-					l.Go("child#"+strconv.Itoa(i), func(l *L) {
+					l.Go("child#"+strconv.Itoa(i), func(l *component.L) {
 						done <- struct{}{}
 					})
 				}
 				for range goroutines {
 					<-done
 				}
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 		})
 	})
 
@@ -93,15 +95,15 @@ func TestL_Run(t *testing.T) {
 			// capture l variable to simulate a closure over it
 			// (may happen in real code when storing a reference to
 			// the lifecycle)
-			var capture *L
-			RunProc(func(l *L) { capture = l }, WithName(t.Name()))
+			var capture *component.L
+			component.RunProc(func(l *component.L) { capture = l }, component.WithName(t.Name()))
 			// calling L.Go after the lifecycle has completed should panic
 			defer func() {
 				if reason := recover(); reason == nil {
 					t.Error("L.Go() must panic if called after component completion")
 				}
 			}()
-			capture.Go("<irrelevant>", func(*L) {})
+			capture.Go("<irrelevant>", func(*component.L) {})
 		})
 	})
 }
@@ -111,14 +113,14 @@ func TestL_Cleanup(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			const count = 100
 			order := make(map[int]int) // map: cleanupFn#index -> called order
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				for i := range count {
 					index := i
 					l.Cleanup(func() {
 						order[index] = len(order)
 					})
 				}
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 			if len(order) != count {
 				t.Fatalf("cleanup functions were not called: got %d, want %d", len(order), count)
 			}
@@ -135,8 +137,8 @@ func TestL_Cleanup(t *testing.T) {
 			// capture l variable to simulate a closure over it
 			// (may happen in real code when storing a reference to
 			// the lifecycle)
-			var capture *L
-			RunProc(func(l *L) { capture = l }, WithName(t.Name()))
+			var capture *component.L
+			component.RunProc(func(l *component.L) { capture = l }, component.WithName(t.Name()))
 			// calling L.Cleanup after the lifecycle has completed should panic
 			defer func() {
 				if reason := recover(); reason == nil {
@@ -154,14 +156,14 @@ func TestL_Cleanup(t *testing.T) {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				RunProc(func(l *L) {
+				component.RunProc(func(l *component.L) {
 					l.Cleanup(func() { cleanedUp.Store(true) })
-					l.Go("subcomponent", func(*L) {
+					l.Go("subcomponent", func(*component.L) {
 						// stay blocked so the lifecycle - and therefore its
 						// cleanup - cannot complete until we release it below
 						<-release
 					})
-				}, WithName(t.Name()))
+				}, component.WithName(t.Name()))
 			}()
 
 			// synctest.Wait blocks until every other goroutine in the bubble is
@@ -187,7 +189,7 @@ func TestL_Cleanup(t *testing.T) {
 func TestL_Fatal(t *testing.T) {
 	t.Run("CalledFromNestedFunctions", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				func() {
 					func() {
 						func() {
@@ -199,7 +201,7 @@ func TestL_Fatal(t *testing.T) {
 					t.Error("L.Fatal() should have aborted execution (nesting level -2)")
 				}()
 				t.Error("L.Fatal() should have aborted execution (nesting level -3)")
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 		})
 	})
 
@@ -207,7 +209,7 @@ func TestL_Fatal(t *testing.T) {
 		for _, goroutines := range []int{1, 2, 16} {
 			t.Run(fmt.Sprintf("ConcurrentCalls=%d", goroutines), func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
-					RunProc(func(l *L) {
+					component.RunProc(func(l *component.L) {
 						done := make(chan struct{})
 						for i := range goroutines {
 							go func(index int) {
@@ -222,7 +224,7 @@ func TestL_Fatal(t *testing.T) {
 						for range goroutines {
 							<-done
 						}
-					}, WithName(t.Name()))
+					}, component.WithName(t.Name()))
 				})
 			})
 		}
@@ -231,11 +233,11 @@ func TestL_Fatal(t *testing.T) {
 	t.Run("CallsCleanupFunctions", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			var called bool
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				l.Cleanup(func() { called = true })
 				l.Fatal(fmt.Errorf("test error"))
 				t.Error("L.Fatal() should have aborted execution")
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 			if !called {
 				t.Error("Cleanup() function should have been called")
 			}
@@ -249,7 +251,7 @@ func TestL_Fatal(t *testing.T) {
 		// to ensure this test does not pass by accident due to human error.
 		var calledBeforeFatal, calledAfterFatal bool
 		synctest.Test(t, func(t *testing.T) {
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				l.Cleanup(func() {
 					// scheduled before Fatal(), but executed after because
 					// cleanup functions are executed in reverse order
@@ -264,7 +266,7 @@ func TestL_Fatal(t *testing.T) {
 					// cleanup functions are executed in reverse order
 					calledBeforeFatal = true
 				})
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 		})
 		if !calledBeforeFatal {
 			t.Error("Cleanup() function should have been called before L.Fatal()")
@@ -278,17 +280,17 @@ func TestL_Fatal(t *testing.T) {
 		var sentinel = fmt.Errorf("test error value")
 		tests := []struct {
 			name string
-			fn   func(*L)
+			fn   func(*component.L)
 		}{
 			{
 				name: "Directly",
-				fn: func(l *L) {
+				fn: func(l *component.L) {
 					l.Fatal(sentinel)
 				},
 			},
 			{
 				name: "Goroutine",
-				fn: func(l *L) {
+				fn: func(l *component.L) {
 					done := make(chan struct{})
 					go func() {
 						defer close(done)
@@ -299,7 +301,7 @@ func TestL_Fatal(t *testing.T) {
 			},
 			{
 				name: "Cleanup",
-				fn: func(l *L) {
+				fn: func(l *component.L) {
 					l.Cleanup(func() {
 						l.Fatal(sentinel)
 					})
@@ -309,7 +311,7 @@ func TestL_Fatal(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
-					RunProc(func(l *L) {
+					component.RunProc(func(l *component.L) {
 						l.Cleanup(func() {
 							if !errors.Is(l.Context().Err(), context.Canceled) {
 								t.Error("context should have been canceled")
@@ -320,7 +322,7 @@ func TestL_Fatal(t *testing.T) {
 							}
 						})
 						tt.fn(l)
-					}, WithName(t.Name()))
+					}, component.WithName(t.Name()))
 				})
 			})
 		}
@@ -331,8 +333,8 @@ func TestL_Fatal(t *testing.T) {
 			// capture l variable to simulate a closure over it
 			// (may happen in real code when storing a reference to
 			// the lifecycle)
-			var capture *L
-			RunProc(func(l *L) { capture = l }, WithName(t.Name()))
+			var capture *component.L
+			component.RunProc(func(l *component.L) { capture = l }, component.WithName(t.Name()))
 			// calling L.Fatal after the lifecycle has completed should panic
 			defer func() {
 				if reason := recover(); reason == nil {
@@ -347,23 +349,23 @@ func TestL_Fatal(t *testing.T) {
 func TestL_Context(t *testing.T) {
 	t.Run("Background", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				_, ok := l.Context().Deadline()
 				if ok {
 					t.Error("context should not have a deadline")
 				}
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 		})
 	})
 	t.Run("Canceled", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				if !errors.Is(l.Context().Err(), context.Canceled) {
 					t.Error("context should have been canceled")
 				}
-			}, WithName(t.Name()), WithContext(ctx))
+			}, component.WithName(t.Name()), component.WithContext(ctx))
 		})
 	})
 	t.Run("DeadlineExceeded", func(t *testing.T) {
@@ -371,13 +373,13 @@ func TestL_Context(t *testing.T) {
 			const timeout = time.Millisecond
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				// wait for context to expire
 				<-l.Context().Done()
 				if !errors.Is(l.Context().Err(), context.DeadlineExceeded) {
 					t.Error("context deadline should have been exceeded")
 				}
-			}, WithName(t.Name()), WithContext(ctx))
+			}, component.WithName(t.Name()), component.WithContext(ctx))
 		})
 	})
 }
@@ -385,81 +387,81 @@ func TestL_Context(t *testing.T) {
 func TestL_Name(t *testing.T) {
 	t.Run("Empty", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				if l.Name() != "" {
 					t.Errorf("parent Name() = %q, want %q", l.Name(), "")
 				}
 				// see child initialization for why this is "/"
-				l.Go("", func(l *L) {
+				l.Go("", func(l *component.L) {
 					if l.Name() != "/" {
 						t.Errorf("child Name() = %q, want %q", l.Name(), "./")
 					}
 				})
-			}, WithName(""))
+			}, component.WithName(""))
 		})
 	})
 
 	t.Run("Sanity", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				if l.Name() != "TestLifecycle" {
 					t.Errorf("Name() = %q, want %q", l.Name(), "TestLifecycle")
 				}
-				l.Go("Child", func(l *L) {
+				l.Go("Child", func(l *component.L) {
 					if l.Name() != "TestLifecycle/Child" {
 						t.Errorf("Name() = %q, want %q", l.Name(), "TestLifecycle/Child")
 					}
 				})
-			}, WithName("TestLifecycle"))
+			}, component.WithName("TestLifecycle"))
 		})
 	})
 
 	t.Run("Spaces", func(t *testing.T) {
 		const name = "with spaces"
 		synctest.Test(t, func(t *testing.T) {
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				if l.Name() != name {
 					t.Errorf("L.Name() = %q, want %q", l.Name(), name)
 				}
-				l.Go(name, func(l *L) {
+				l.Go(name, func(l *component.L) {
 					const subname = "with spaces/with spaces"
 					if l.Name() != subname {
 						t.Errorf("L.Name() = %q, want %q", l.Name(), subname)
 					}
 				})
-			}, WithName(name))
+			}, component.WithName(name))
 		})
 	})
 
 	t.Run("Duplicate", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			RunProc(func(l *L) {
-				l.Go("dup", func(l *L) {
+			component.RunProc(func(l *component.L) {
+				l.Go("dup", func(l *component.L) {
 					if l.Name() != "/dup" {
 						t.Errorf("L.Name() = %q, want %q", l.Name(), "./dup")
 					}
 				})
-				l.Go("dup", func(l *L) {
+				l.Go("dup", func(l *component.L) {
 					if l.Name() != "/dup" {
 						t.Errorf("L.Name() = %q, want %q", l.Name(), "./dup")
 					}
 				})
-			}, WithName(""))
+			}, component.WithName(""))
 		})
 	})
 }
 
 func TestL_Terminate(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		RunProc(func(l *L) {
+		component.RunProc(func(l *component.L) {
 			l.Terminate()
 			if !errors.Is(l.Context().Err(), context.Canceled) {
 				t.Error("context should have been canceled")
 			}
-			if cause := context.Cause(l.Context()); !errors.Is(cause, ErrTerminated) {
-				t.Errorf("Cause() = %v, want %v", cause, ErrTerminated)
+			if cause := context.Cause(l.Context()); !errors.Is(cause, component.ErrTerminated) {
+				t.Errorf("Cause() = %v, want %v", cause, component.ErrTerminated)
 			}
-		}, WithName(t.Name()))
+		}, component.WithName(t.Name()))
 	})
 }
 
@@ -471,7 +473,7 @@ func TestL_Stop(t *testing.T) {
 			// in order to "ignore" the Stop() call,
 			// we must block RunProc() until Stop() returns
 			// although Stop() blocks, we block RunProc() until it returns
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				stopped := make(chan bool, 1) // buffered to avoid deadlock with the Stop() goroutine
 				go func() {
 					stopped <- l.Stop(180 * time.Millisecond)
@@ -480,7 +482,7 @@ func TestL_Stop(t *testing.T) {
 				if ok := <-stopped; ok {
 					t.Error("Stop() should have failed")
 				}
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 		})
 	})
 
@@ -488,7 +490,7 @@ func TestL_Stop(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			stopped := make(chan bool, 1)
 			var signalled atomic.Bool // only used for logging
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				go func() {
 					// Stop() blocks, but we know it honors the given timeout
 					// because of the previous test ("Ignored")
@@ -498,7 +500,7 @@ func TestL_Stop(t *testing.T) {
 				// completes the lifecycle
 				<-l.Stopping()
 				signalled.Store(true)
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 			if !<-stopped {
 				t.Logf("stop signal received = %v", signalled.Load())
 				t.Error("Stop() should have succeeded")
@@ -513,7 +515,7 @@ func TestL_Stop(t *testing.T) {
 		// because this guarantees that the lifecycle is not
 		// respecting its Stopped() signal.
 		synctest.Test(t, func(t *testing.T) {
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				stopped := make(chan bool, len(timeouts))
 				for i := range timeouts {
 					go func(timeout time.Duration) {
@@ -526,7 +528,7 @@ func TestL_Stop(t *testing.T) {
 						t.Errorf("Stop() should have failed (already stopped: %d/%d)", i, len(timeouts))
 					}
 				}
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 		})
 	})
 
@@ -534,7 +536,7 @@ func TestL_Stop(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			stopped := make(chan bool)
 			ready := make(chan struct{})
-			RunProc(func(l *L) {
+			component.RunProc(func(l *component.L) {
 				go func() {
 					// stop parent-lifecycle immediately after the two
 					// child-lifecycles have been scheduled (by Go())
@@ -545,16 +547,16 @@ func TestL_Stop(t *testing.T) {
 					stopped <- l.Stop(time.Second)
 				}()
 
-				l.Go("child1", func(l *L) {
+				l.Go("child1", func(l *component.L) {
 					ready <- struct{}{}
 					<-l.Stopping() // wait for child-lifecycle to signal a stop
 				})
-				l.Go("child2", func(l *L) {
+				l.Go("child2", func(l *component.L) {
 					ready <- struct{}{}
 					<-l.Stopping() // wait for child-lifecycle to signal a stop
 				})
 				<-l.Stopping() // wait for parent-lifecycle to signal a stop
-			}, WithName(t.Name()))
+			}, component.WithName(t.Name()))
 			if !<-stopped {
 				t.Error("Stop() should have succeeded")
 			}
@@ -565,7 +567,7 @@ func TestL_Stop(t *testing.T) {
 func TestL_Continue(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		stopper := make(chan struct{})
-		RunProc(func(l *L) {
+		component.RunProc(func(l *component.L) {
 			if !l.Continue() {
 				t.Error("Continue() should have returned true")
 			}
@@ -578,6 +580,6 @@ func TestL_Continue(t *testing.T) {
 			if l.Continue() {
 				t.Error("Continue() should have returned false")
 			}
-		}, WithName(t.Name()), WithStopper(stopper))
+		}, component.WithName(t.Name()), component.WithStopper(stopper))
 	})
 }
