@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -150,33 +149,37 @@ func TestL_Cleanup(t *testing.T) {
 
 	t.Run("SynchronisesBeforeSubComponents", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 180*time.Millisecond)
-			defer cancel()
-			RunProc(func(l *L) {
-				canary := make(chan struct{})
-				l.Cleanup(func() {
-					// send a signal to the canary channel to indicate that the cleanup function has
-					// been called. this case blocks indefinitely if the subcomponent has already
-					// returned
-					select {
-					case <-ctx.Done():
-					case canary <- struct{}{}:
-						t.Error("Cleanup(): cleanup function was called before the subcomponent completed")
-					}
-				})
-				l.Go("canary", func(*L) {
-					// yield to increase the change of the cleanup being called in case the test will
-					// have failed
-					runtime.Gosched()
-					// wait for the cleanup to be called - we only know it has not been called if the
-					// context times out
-					select {
-					case <-ctx.Done():
-					case <-canary:
-						t.Error("Go(): cleanup function was called before the subcomponent completed")
-					}
-				})
-			}, WithName(t.Name()), WithContext(ctx))
+			var cleanedUp atomic.Bool
+			release := make(chan struct{})
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				RunProc(func(l *L) {
+					l.Cleanup(func() { cleanedUp.Store(true) })
+					l.Go("subcomponent", func(*L) {
+						// stay blocked so the lifecycle - and therefore its
+						// cleanup - cannot complete until we release it below
+						<-release
+					})
+				}, WithName(t.Name()))
+			}()
+
+			// synctest.Wait blocks until every other goroutine in the bubble is
+			// durably blocked: the subcomponent parked on <-release, the
+			// lifecycle waiting on it in wg.Wait, and the reapers idle. At that
+			// quiescent point a cleanup that had run early would already be
+			// observable, so this asserts the negative directly rather than
+			// inferring it from a deadline that never fires.
+			synctest.Wait()
+			if cleanedUp.Load() {
+				t.Error("cleanup ran before the subcomponent completed")
+			}
+
+			close(release) // let the subcomponent finish so the lifecycle completes
+			<-done
+			if !cleanedUp.Load() {
+				t.Error("cleanup did not run after the subcomponent completed")
+			}
 		})
 	})
 }
