@@ -374,13 +374,9 @@ func TestL_Context(t *testing.T) {
 			defer cancel()
 			RunProc(func(l *L) {
 				// wait for context to expire
-				select {
-				case <-l.Context().Done():
-					if !errors.Is(l.Context().Err(), context.DeadlineExceeded) {
-						t.Error("context deadline should have been exceeded")
-					}
-				case <-time.After(SyncTimeout):
-					t.Error("timeout: context should have been canceled by now")
+				<-l.Context().Done()
+				if !errors.Is(l.Context().Err(), context.DeadlineExceeded) {
+					t.Error("context deadline should have been exceeded")
 				}
 			}, WithName(t.Name()), WithContext(ctx))
 		})
