@@ -563,23 +563,25 @@ func TestL_Stop(t *testing.T) {
 }
 
 func TestL_Continue(t *testing.T) {
-	stopper := make(chan struct{})
-	RunProc(func(l *L) {
-		if !l.Continue() {
-			t.Error("Continue() should have returned true")
-		}
+	synctest.Test(t, func(t *testing.T) {
+		stopper := make(chan struct{})
+		RunProc(func(l *L) {
+			if !l.Continue() {
+				t.Error("Continue() should have returned true")
+			}
 
-		close(stopper) // stop the lifecycle
-		// synchronise with the lifecycle signal propagation (otherwise Continue() might
-		// return before the lifecycle has had a chance to propagate the stop signal)
-		select {
-		case <-l.Stopping():
-		case <-time.After(SyncTimeout):
-			t.Fatal("timeout: lifecycle stop did not synchronise with Continue()")
-		}
+			close(stopper) // stop the lifecycle
+			// synchronise with the lifecycle signal propagation (otherwise Continue() might
+			// return before the lifecycle has had a chance to propagate the stop signal)
+			select {
+			case <-l.Stopping():
+			case <-time.After(SyncTimeout):
+				t.Fatal("timeout: lifecycle stop did not synchronise with Continue()")
+			}
 
-		if l.Continue() {
-			t.Error("Continue() should have returned false")
-		}
-	}, WithName(t.Name()), WithStopper(stopper))
+			if l.Continue() {
+				t.Error("Continue() should have returned false")
+			}
+		}, WithName(t.Name()), WithStopper(stopper))
+	})
 }
