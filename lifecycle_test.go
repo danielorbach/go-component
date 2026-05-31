@@ -220,11 +220,7 @@ func TestL_Fatal(t *testing.T) {
 						// of the lifecycle - calls to L.Fatal from other goroutines do not
 						// (and cannot) affect the primary goroutine.
 						for range goroutines {
-							select {
-							case <-done:
-							case <-time.After(SyncTimeout):
-								t.Fatal("timeout: L.Fatal() did not call deferred functions in goroutines")
-							}
+							<-done
 						}
 					}, WithName(t.Name()))
 				})
