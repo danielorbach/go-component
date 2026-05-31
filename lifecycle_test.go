@@ -111,70 +111,76 @@ func TestL_Cleanup(t *testing.T) {
 	t.Parallel() // parallel because of a subtest which must time out to pass (also parallel)
 
 	t.Run("Order", func(t *testing.T) {
-		const count = 100
-		order := make(map[int]int) // map: cleanupFn#index -> called order
-		RunProc(func(l *L) {
-			for i := range count {
-				index := i
-				l.Cleanup(func() {
-					order[index] = len(order)
-				})
+		synctest.Test(t, func(t *testing.T) {
+			const count = 100
+			order := make(map[int]int) // map: cleanupFn#index -> called order
+			RunProc(func(l *L) {
+				for i := range count {
+					index := i
+					l.Cleanup(func() {
+						order[index] = len(order)
+					})
+				}
+			}, WithName(t.Name()))
+			if len(order) != count {
+				t.Fatalf("cleanup functions were not called: got %d, want %d", len(order), count)
 			}
-		}, WithName(t.Name()))
-		if len(order) != count {
-			t.Fatalf("cleanup functions were not called: got %d, want %d", len(order), count)
-		}
-		for index, called := range order {
-			if called != count-index-1 {
-				t.Errorf("cleanup#%d was called out of order: got %d, want %d", index, called, count-index-1)
+			for index, called := range order {
+				if called != count-index-1 {
+					t.Errorf("cleanup#%d was called out of order: got %d, want %d", index, called, count-index-1)
+				}
 			}
-		}
+		})
 	})
 
 	t.Run("CalledAfterCompletion", func(t *testing.T) {
-		// capture l variable to simulate a closure over it
-		// (may happen in real code when storing a reference to
-		// the lifecycle)
-		var capture *L
-		RunProc(func(l *L) { capture = l }, WithName(t.Name()))
-		// calling L.Cleanup after the lifecycle has completed should panic
-		defer func() {
-			if reason := recover(); reason == nil {
-				t.Error("L.Cleanup() must panic if called after component completion")
-			}
-		}()
-		capture.Cleanup(func() {})
+		synctest.Test(t, func(t *testing.T) {
+			// capture l variable to simulate a closure over it
+			// (may happen in real code when storing a reference to
+			// the lifecycle)
+			var capture *L
+			RunProc(func(l *L) { capture = l }, WithName(t.Name()))
+			// calling L.Cleanup after the lifecycle has completed should panic
+			defer func() {
+				if reason := recover(); reason == nil {
+					t.Error("L.Cleanup() must panic if called after component completion")
+				}
+			}()
+			capture.Cleanup(func() {})
+		})
 	})
 
 	t.Run("SynchronisesBeforeSubComponents", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), 180*time.Millisecond)
-		defer cancel()
-		RunProc(func(l *L) {
-			canary := make(chan struct{})
-			l.Cleanup(func() {
-				// send a signal to the canary channel to indicate that the cleanup function has
-				// been called. this case blocks indefinitely if the subcomponent has already
-				// returned
-				select {
-				case <-ctx.Done():
-				case canary <- struct{}{}:
-					t.Error("Cleanup(): cleanup function was called before the subcomponent completed")
-				}
-			})
-			l.Go("canary", func(*L) {
-				// yield to increase the change of the cleanup being called in case the test will
-				// have failed
-				runtime.Gosched()
-				// wait for the cleanup to be called - we only know it has not been called if the
-				// context times out
-				select {
-				case <-ctx.Done():
-				case <-canary:
-					t.Error("Go(): cleanup function was called before the subcomponent completed")
-				}
-			})
-		}, WithName(t.Name()), WithContext(ctx))
+		synctest.Test(t, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 180*time.Millisecond)
+			defer cancel()
+			RunProc(func(l *L) {
+				canary := make(chan struct{})
+				l.Cleanup(func() {
+					// send a signal to the canary channel to indicate that the cleanup function has
+					// been called. this case blocks indefinitely if the subcomponent has already
+					// returned
+					select {
+					case <-ctx.Done():
+					case canary <- struct{}{}:
+						t.Error("Cleanup(): cleanup function was called before the subcomponent completed")
+					}
+				})
+				l.Go("canary", func(*L) {
+					// yield to increase the change of the cleanup being called in case the test will
+					// have failed
+					runtime.Gosched()
+					// wait for the cleanup to be called - we only know it has not been called if the
+					// context times out
+					select {
+					case <-ctx.Done():
+					case <-canary:
+						t.Error("Go(): cleanup function was called before the subcomponent completed")
+					}
+				})
+			}, WithName(t.Name()), WithContext(ctx))
+		})
 	})
 }
 
