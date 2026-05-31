@@ -6,5 +6,8 @@
         "repo": "notorious-ai/claude-plugins"
       }
     }
+  },
+  "enabledPlugins": {
+    "github-author@notorious-ai": true
   }
 }
