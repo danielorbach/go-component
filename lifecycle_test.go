@@ -450,15 +450,17 @@ func TestL_Name(t *testing.T) {
 }
 
 func TestL_Terminate(t *testing.T) {
-	RunProc(func(l *L) {
-		l.Terminate()
-		if !errors.Is(l.Context().Err(), context.Canceled) {
-			t.Error("context should have been canceled")
-		}
-		if cause := context.Cause(l.Context()); !errors.Is(cause, ErrTerminated) {
-			t.Errorf("Cause() = %v, want %v", cause, ErrTerminated)
-		}
-	}, WithName(t.Name()))
+	synctest.Test(t, func(t *testing.T) {
+		RunProc(func(l *L) {
+			l.Terminate()
+			if !errors.Is(l.Context().Err(), context.Canceled) {
+				t.Error("context should have been canceled")
+			}
+			if cause := context.Cause(l.Context()); !errors.Is(cause, ErrTerminated) {
+				t.Errorf("Cause() = %v, want %v", cause, ErrTerminated)
+			}
+		}, WithName(t.Name()))
+	})
 }
 
 func TestL_Stop(t *testing.T) {
