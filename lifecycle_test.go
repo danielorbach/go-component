@@ -346,38 +346,44 @@ func TestL_Fatal(t *testing.T) {
 
 func TestL_Context(t *testing.T) {
 	t.Run("Background", func(t *testing.T) {
-		RunProc(func(l *L) {
-			_, ok := l.Context().Deadline()
-			if ok {
-				t.Error("context should not have a deadline")
-			}
-		}, WithName(t.Name()))
+		synctest.Test(t, func(t *testing.T) {
+			RunProc(func(l *L) {
+				_, ok := l.Context().Deadline()
+				if ok {
+					t.Error("context should not have a deadline")
+				}
+			}, WithName(t.Name()))
+		})
 	})
 	t.Run("Canceled", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		RunProc(func(l *L) {
-			if !errors.Is(l.Context().Err(), context.Canceled) {
-				t.Error("context should have been canceled")
-			}
-		}, WithName(t.Name()), WithContext(ctx))
+		synctest.Test(t, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			RunProc(func(l *L) {
+				if !errors.Is(l.Context().Err(), context.Canceled) {
+					t.Error("context should have been canceled")
+				}
+			}, WithName(t.Name()), WithContext(ctx))
+		})
 	})
 	t.Run("DeadlineExceeded", func(t *testing.T) {
 		t.Parallel()
-		const timeout = time.Millisecond
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		RunProc(func(l *L) {
-			// wait for context to expire
-			select {
-			case <-l.Context().Done():
-				if !errors.Is(l.Context().Err(), context.DeadlineExceeded) {
-					t.Error("context deadline should have been exceeded")
+		synctest.Test(t, func(t *testing.T) {
+			const timeout = time.Millisecond
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			RunProc(func(l *L) {
+				// wait for context to expire
+				select {
+				case <-l.Context().Done():
+					if !errors.Is(l.Context().Err(), context.DeadlineExceeded) {
+						t.Error("context deadline should have been exceeded")
+					}
+				case <-time.After(SyncTimeout):
+					t.Error("timeout: context should have been canceled by now")
 				}
-			case <-time.After(SyncTimeout):
-				t.Error("timeout: context should have been canceled by now")
-			}
-		}, WithName(t.Name()), WithContext(ctx))
+			}, WithName(t.Name()), WithContext(ctx))
+		})
 	})
 }
 
