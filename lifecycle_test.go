@@ -367,7 +367,6 @@ func TestL_Context(t *testing.T) {
 		})
 	})
 	t.Run("DeadlineExceeded", func(t *testing.T) {
-		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			const timeout = time.Millisecond
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
