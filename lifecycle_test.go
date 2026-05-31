@@ -13,10 +13,6 @@ import (
 	"github.com/danielorbach/go-component"
 )
 
-// SyncTimeout is the maximum time a test is allowed to wait for a
-// synchronisation event to occur.
-const SyncTimeout = time.Second
-
 func TestDrivenDevelopment(t *testing.T) {
 	t.Run("FunctionExecution", func(t *testing.T) {
 		tests := []struct {
@@ -494,7 +490,7 @@ func TestL_Stop(t *testing.T) {
 				go func() {
 					// Stop() blocks, but we know it honors the given timeout
 					// because of the previous test ("Ignored")
-					stopped <- l.Stop(SyncTimeout)
+					stopped <- l.Stop(time.Second)
 				}()
 				// returning after waiting for Stopping() to close
 				// completes the lifecycle
