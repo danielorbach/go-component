@@ -73,37 +73,41 @@ func TestDrivenDevelopment(t *testing.T) {
 
 func TestL_Run(t *testing.T) {
 	t.Run("Concurrent", func(t *testing.T) {
-		const goroutines = 16
-		RunProc(func(l *L) {
-			done := make(chan struct{})
-			for i := range goroutines {
-				l.Go("child#"+strconv.Itoa(i), func(l *L) {
-					done <- struct{}{}
-				})
-			}
-			for range goroutines {
-				select {
-				case <-done:
-				case <-time.After(SyncTimeout):
-					t.Fatal("timeout: timed out while waiting for sub-component to complete")
+		synctest.Test(t, func(t *testing.T) {
+			const goroutines = 16
+			RunProc(func(l *L) {
+				done := make(chan struct{})
+				for i := range goroutines {
+					l.Go("child#"+strconv.Itoa(i), func(l *L) {
+						done <- struct{}{}
+					})
 				}
-			}
-		}, WithName(t.Name()))
+				for range goroutines {
+					select {
+					case <-done:
+					case <-time.After(SyncTimeout):
+						t.Fatal("timeout: timed out while waiting for sub-component to complete")
+					}
+				}
+			}, WithName(t.Name()))
+		})
 	})
 
 	t.Run("CalledAfterCompletion", func(t *testing.T) {
-		// capture l variable to simulate a closure over it
-		// (may happen in real code when storing a reference to
-		// the lifecycle)
-		var capture *L
-		RunProc(func(l *L) { capture = l }, WithName(t.Name()))
-		// calling L.Go after the lifecycle has completed should panic
-		defer func() {
-			if reason := recover(); reason == nil {
-				t.Error("L.Go() must panic if called after component completion")
-			}
-		}()
-		capture.Go("<irrelevant>", func(*L) {})
+		synctest.Test(t, func(t *testing.T) {
+			// capture l variable to simulate a closure over it
+			// (may happen in real code when storing a reference to
+			// the lifecycle)
+			var capture *L
+			RunProc(func(l *L) { capture = l }, WithName(t.Name()))
+			// calling L.Go after the lifecycle has completed should panic
+			defer func() {
+				if reason := recover(); reason == nil {
+					t.Error("L.Go() must panic if called after component completion")
+				}
+			}()
+			capture.Go("<irrelevant>", func(*L) {})
+		})
 	})
 }
 
