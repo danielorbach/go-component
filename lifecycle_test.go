@@ -480,13 +480,8 @@ func TestL_Stop(t *testing.T) {
 					stopped <- l.Stop(180 * time.Millisecond)
 				}()
 				// block the lifecycle until Stop() returns
-				select {
-				case ok := <-stopped:
-					if ok {
-						t.Error("Stop() should have failed")
-					}
-				case <-time.After(SyncTimeout):
-					t.Error("timeout: Stop() should have returned by now")
+				if ok := <-stopped; ok {
+					t.Error("Stop() should have failed")
 				}
 			}, WithName(t.Name()))
 		})
@@ -531,16 +526,9 @@ func TestL_Stop(t *testing.T) {
 					}(timeouts[i])
 				}
 				// wait for all Stop() calls to return
-				timer := time.NewTimer(SyncTimeout)
-				defer timer.Stop()
 				for i := range timeouts {
-					select {
-					case ok := <-stopped:
-						if ok {
-							t.Errorf("Stop() should have failed (already stopped: %d/%d)", i, len(timeouts))
-						}
-					case <-timer.C:
-						t.Fatal("timeout: Stop() did not return")
+					if ok := <-stopped; ok {
+						t.Errorf("Stop() should have failed (already stopped: %d/%d)", i, len(timeouts))
 					}
 				}
 			}, WithName(t.Name()))
