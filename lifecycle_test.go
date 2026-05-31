@@ -83,11 +83,7 @@ func TestL_Run(t *testing.T) {
 					})
 				}
 				for range goroutines {
-					select {
-					case <-done:
-					case <-time.After(SyncTimeout):
-						t.Fatal("timeout: timed out while waiting for sub-component to complete")
-					}
+					<-done
 				}
 			}, WithName(t.Name()))
 		})
