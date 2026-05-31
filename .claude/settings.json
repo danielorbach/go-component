@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "notorious-ai": {
+      "source": {
+        "source": "github",
+        "repo": "notorious-ai/claude-plugins"
+      }
+    }
+  }
+}
