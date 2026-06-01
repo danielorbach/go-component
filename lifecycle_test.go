@@ -390,7 +390,7 @@ func TestL_Name(t *testing.T) {
 				// see child initialization for why this is "/"
 				l.Go("", func(l *component.L) {
 					if l.Name() != "/" {
-						t.Errorf("child Name() = %q, want %q", l.Name(), "./")
+						t.Errorf("child Name() = %q, want %q", l.Name(), "/")
 					}
 				})
 			}, component.WithName(""))
@@ -434,12 +434,12 @@ func TestL_Name(t *testing.T) {
 			component.RunProc(func(l *component.L) {
 				l.Go("dup", func(l *component.L) {
 					if l.Name() != "/dup" {
-						t.Errorf("L.Name() = %q, want %q", l.Name(), "./dup")
+						t.Errorf("L.Name() = %q, want %q", l.Name(), "/dup")
 					}
 				})
 				l.Go("dup", func(l *component.L) {
 					if l.Name() != "/dup" {
-						t.Errorf("L.Name() = %q, want %q", l.Name(), "./dup")
+						t.Errorf("L.Name() = %q, want %q", l.Name(), "/dup")
 					}
 				})
 			}, component.WithName(""))
