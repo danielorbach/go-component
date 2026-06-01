@@ -481,21 +481,21 @@ func TestL_Stop(t *testing.T) {
 
 	t.Run("Respected", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			stopped := make(chan bool, 1)
-			var signalled atomic.Bool // only used for logging
+			// Stop() must run in a goroutine other than the one that completes
+			// the lifecycle, since it blocks until the primary goroutine returns
+			// from Stopping(). The channel carries the verdict back out with the
+			// happens-before the assertion needs: a plain shared bool could be
+			// read before the Stop() goroutine is joined at the end of the bubble.
+			stopped := make(chan bool)
 			component.RunProc(func(l *component.L) {
 				go func() {
-					// Stop() blocks, but we know it honors the given timeout
-					// because of the previous test ("Ignored")
+					// Stop() honors its timeout - see the "Ignored" subtest -
+					// so a success here means the lifecycle reacted in time.
 					stopped <- l.Stop(time.Second)
 				}()
-				// returning after waiting for Stopping() to close
-				// completes the lifecycle
-				<-l.Stopping()
-				signalled.Store(true)
+				<-l.Stopping() // react to the stop, then return to complete
 			}, component.WithName(t.Name()))
 			if !<-stopped {
-				t.Logf("stop signal received = %v", signalled.Load())
 				t.Error("Stop() should have succeeded")
 			}
 		})
