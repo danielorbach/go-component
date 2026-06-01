@@ -466,16 +466,13 @@ func TestL_Stop(t *testing.T) {
 	// (crucial for the next test to work)
 	t.Run("Ignored", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			// in order to "ignore" the Stop() call,
-			// we must block RunProc() until Stop() returns
-			// although Stop() blocks, we block RunProc() until it returns
 			component.RunProc(func(l *component.L) {
-				stopped := make(chan bool, 1) // buffered to avoid deadlock with the Stop() goroutine
-				go func() {
-					stopped <- l.Stop(180 * time.Millisecond)
-				}()
-				// block the lifecycle until Stop() returns
-				if ok := <-stopped; ok {
+				// Calling Stop() from the lifecycle's own goroutine parks it
+				// here: the lifecycle cannot complete while it waits inside
+				// Stop(), so Stop() can only return by hitting its deadline -
+				// which the fake clock reaches the instant every goroutine is
+				// durably blocked.
+				if l.Stop(180 * time.Millisecond) {
 					t.Error("Stop() should have failed")
 				}
 			}, component.WithName(t.Name()))
