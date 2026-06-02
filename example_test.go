@@ -2,38 +2,32 @@ package component_test
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/danielorbach/go-component"
 )
 
-// Example_gracefulShutdown shows a component that does periodic work and stops
-// cleanly when the surrounding program asks it to. Closing the stopper channel,
-// which in production is fed by an interrupt signal, unblocks L.Stopping so the
-// procedure can return and let the lifecycle run its cleanup.
+// Example_gracefulShutdown shows how a component does its work and stops cleanly
+// when the surrounding program asks it to. WithStopper feeds in the stop request;
+// closing that channel, which a real program does on an interrupt signal, makes
+// l.Continue() report that it is time to wind down, so the procedure returns and
+// lets the lifecycle complete its shutdown.
 func Example_gracefulShutdown() {
-	// Closing this channel is the request to wind down; a real program feeds it
-	// from an interrupt signal.
+	// A real program closes this when it receives an interrupt signal.
 	shutdown := make(chan struct{})
-	go func() {
-		// Stand in for a signal that arrives a short while after startup.
-		time.Sleep(10 * time.Millisecond)
-		close(shutdown)
-	}()
+	go func() { close(shutdown) }()
 
 	component.RunProc(func(l *component.L) {
 		fmt.Println("working")
+
+		// Keep working until the component is asked to stop. l.Continue()
+		// returns false once the stop request arrives, which ends the loop.
 		for l.Continue() {
-			select {
-			case <-time.After(time.Millisecond):
-				// Do one unit of periodic work here.
-			case <-l.Stopping():
-				// The request arrived. Returning runs the lifecycle's cleanup
-				// instead of abandoning work midway.
-				fmt.Println("stopped gracefully")
-				return
-			}
+			// Do one unit of work here: handle a message, advance a job, poll
+			// a source. Keep each unit short so the loop checks l.Continue()
+			// often and reacts to the stop request promptly.
 		}
+
+		fmt.Println("stopped gracefully")
 	}, component.WithStopper(shutdown))
 
 	// Output:
