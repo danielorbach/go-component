@@ -14,6 +14,12 @@ The basic building block of a backend system is a component. A component is a de
 
 Each component has the potential to **notify** other components about changes to its exposed _Aspect_. We say that those components have an _Interest_ to **track** the component's _Aspect_. As such, a component may have none, one or many _Aspects_ and _Interests_.
 
+## Testing
+
+A note for maintainers: the lifecycle suite runs under [testing/synctest][synctest] for deterministic control over concurrent startup, shutdown, and cleanup. When adding tests that exercise lifecycle concurrency, follow the existing tests in `lifecycle_test.go`.
+
+[synctest]: https://pkg.go.dev/testing/synctest
+
 ## Acknowledgments
 
 Special thanks to [@ofektavor], [@yuvalmendelovich], [@marombracha], and [@arieltod] for your contributions and collaboration on this project.
