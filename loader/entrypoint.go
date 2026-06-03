@@ -11,10 +11,18 @@ import (
 	"github.com/danielorbach/go-component"
 )
 
+// EntrypointProc is [Entrypoint] for a procedure expressed as a [component.Proc].
 func EntrypointProc(main component.Proc, opts ...component.Option) {
 	Entrypoint(main, opts...)
 }
 
+// Entrypoint runs main as the program's root lifecycle and blocks until it, its
+// child lifecycles, and their cleanup have all finished.
+//
+// It supplies a background context and a logger that writes to standard error,
+// then installs a signal handler: the first SIGINT or SIGTERM asks the lifecycle
+// to stop gracefully, and a second SIGINT terminates it abruptly. The supplied
+// options are applied after these defaults, so a caller may override them.
 func Entrypoint(main component.Procedure, opts ...component.Option) {
 	opts = append(opts,
 		component.WithContext(context.Background()),
