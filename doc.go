@@ -17,12 +17,13 @@
 //
 // # Running a program
 //
-// A standalone program rarely calls [RunProc] itself. The loader subpackage
-// provides Entrypoint, which installs a context, a logger, and an interrupt
-// handler before running the procedure, so that pressing Ctrl-C or receiving a
-// SIGTERM (as Kubernetes sends on shutdown) becomes the stop request the
-// lifecycle observes. Reach for [RunProc] or [Run] when embedding a lifecycle
-// inside a larger program or a test.
+// A standalone program rarely calls [RunProc] itself. The
+// [github.com/danielorbach/go-component/loader] subpackage provides Entrypoint,
+// which installs a context, a logger, and an interrupt handler before running
+// the procedure, so that pressing Ctrl-C or receiving a SIGTERM (as Kubernetes
+// sends on shutdown) becomes the stop request the lifecycle observes. Reach for
+// [RunProc] or [Run] when embedding a lifecycle inside a larger program or a
+// test.
 //
 // The lifecycle's concurrency is exercised under [testing/synctest]; the L tests
 // in lifecycle_test.go are the worked examples to follow.
