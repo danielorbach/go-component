@@ -6,6 +6,13 @@
 // request to stop. [RunProc] starts one and blocks until it, its children, and
 // their cleanup have all finished.
 //
+// # Testing with synctest
+//
+// The lifecycle's concurrency is exercised under [testing/synctest], which gives
+// a test deterministic control over the goroutines a lifecycle starts. The L
+// tests in lifecycle_test.go are the worked examples to follow when testing
+// lifecycle behaviour.
+//
 // # Configuring a lifecycle
 //
 // [RunProc] and [Run] accept [Option] values that configure the lifecycle before
@@ -24,7 +31,4 @@
 // sends on shutdown) becomes the stop request the lifecycle observes. Reach for
 // [RunProc] or [Run] when embedding a lifecycle inside a larger program or a
 // test.
-//
-// The lifecycle's concurrency is exercised under [testing/synctest]; the L tests
-// in lifecycle_test.go are the worked examples to follow.
 package component
