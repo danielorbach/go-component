@@ -16,9 +16,10 @@ Each component has the potential to **notify** other components about changes to
 
 ## Testing
 
-A note for maintainers: the lifecycle suite runs under [testing/synctest][synctest] for deterministic control over concurrent startup, shutdown, and cleanup. When adding tests that exercise lifecycle concurrency, follow the existing tests in `lifecycle_test.go`.
+A note for maintainers: the lifecycle suite runs under [testing/synctest][synctest] for deterministic control over concurrent startup, shutdown, and cleanup. When adding tests that exercise lifecycle concurrency, follow the existing tests in [`lifecycle_test.go`][lifecycle_test].
 
 [synctest]: https://pkg.go.dev/testing/synctest
+[lifecycle_test]: lifecycle_test.go
 
 ## Acknowledgments
 
