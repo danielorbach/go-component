@@ -53,7 +53,7 @@ jobs:
       contents: read # Required by: actions/checkout
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # The review job grants no write scope to contents, but
           # persist-credentials: false ensures the Claude agent cannot
