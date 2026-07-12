@@ -39,6 +39,10 @@ func execute(ctx context.Context, options lifecycleOptions) {
 	// should be started with pprof.Do to ensure that they are labelled correctly.
 	ctx = pprofIncrementLabel(ctx, "component.depth")
 	pprof.Do(ctx, pprof.Labels("component.name", options.Name()), func(ctx context.Context) {
+		// Seed the lifecycle's name as a logging attribute so records logged
+		// with this context can identify the component (see LogAttr).
+		ctx = withComponentLogAttr(ctx, options.Name())
+
 		done := make(chan struct{}) // make ahead of &L for better readability
 
 		// TODO: attach caller-defined attributes to the span
