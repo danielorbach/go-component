@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 
 	"github.com/IBM/sarama"
 	"go.opentelemetry.io/otel"
@@ -72,7 +73,7 @@ func (x Loader) Exec(l *component.L) {
 			if errors.Is(err, context.Canceled) && errors.Is(context.Cause(l.GraceContext()), component.ErrStopped) {
 				break
 			}
-			l.Errorf("receive footprint: %w", err)
+			slog.ErrorContext(l.Context(), "receive footprint", "err", err)
 			continue
 		}
 		m.Ack()
@@ -92,7 +93,7 @@ func handleFootprint(l *component.L, msg *sarama.ConsumerMessage) {
 
 	fp, err := fileloader.UnmarshalFootprintJSON(msg.Value)
 	if err != nil {
-		l.Errorf("unmarshal footprint: %w", err)
+		slog.ErrorContext(l.Context(), "unmarshal footprint", "err", err)
 		span.SetStatus(codes.Error, err.Error()) // TODO: how does this look in Jaeger?
 		return
 	}

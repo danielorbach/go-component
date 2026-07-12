@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/MakeNowJust/heredoc"
 	"gocloud.dev/pubsub"
@@ -41,7 +42,7 @@ var PongComponent = &component.Descriptor{
 				case errors.Is(err, context.Canceled):
 					return
 				case err != nil:
-					l.Error(fmt.Errorf("receive ping: %w", err))
+					slog.ErrorContext(l.Context(), "receive ping", "err", err)
 					continue
 				}
 				msg.Ack()
@@ -49,7 +50,7 @@ var PongComponent = &component.Descriptor{
 				echo := "ECHO " + string(msg.Body)
 				err = pub.Send(l.Context(), &pubsub.Message{Body: []byte(echo)})
 				if err != nil {
-					l.Error(fmt.Errorf("send pong: %w", err))
+					slog.ErrorContext(l.Context(), "send pong", "err", err)
 				}
 			}
 		})

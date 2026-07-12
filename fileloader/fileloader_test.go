@@ -1,6 +1,8 @@
 package fileloader_test
 
 import (
+	"log/slog"
+
 	"github.com/danielorbach/go-component"
 	"github.com/danielorbach/go-component/fileloader"
 	"github.com/danielorbach/go-component/loader"
@@ -11,7 +13,7 @@ func ExampleMain() {
 	var Component = &component.Descriptor{
 		Name: "example",
 		Bootstrap: func(l *component.L, _ component.Linker, _ any) error {
-			l.Logf("Hello world!")
+			slog.InfoContext(l.Context(), "Hello world!")
 			return nil
 		},
 		OptionsType: nil,
@@ -28,7 +30,7 @@ func ExampleLoad() {
 	var Component = &component.Descriptor{
 		Name: "example",
 		Bootstrap: func(l *component.L, _ component.Linker, _ any) error {
-			l.Logf("Hello world!")
+			slog.InfoContext(l.Context(), "Hello world!")
 			return nil
 		},
 		OptionsType: nil,

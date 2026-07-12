@@ -40,7 +40,7 @@ type signalMiddleware struct {
 }
 
 func (m signalMiddleware) Exec(l *component.L) {
-	l.Log("Press Ctrl-C to stop gracefully; press again to terminate abruptly.")
+	slog.InfoContext(l.Context(), "press Ctrl-C to stop gracefully; press again to terminate abruptly")
 	go pprof.Do(l.Context(), pprof.Labels("stop-signal", "soft"), func(context.Context) { m.softStop(l) })
 	go pprof.Do(l.Context(), pprof.Labels("stop-signal", "hard"), func(context.Context) { m.hardStop(l) })
 	m.base.Exec(l)
@@ -63,7 +63,7 @@ func (m signalMiddleware) softStop(l *component.L) {
 	select {
 	case <-sig:
 		signal.Stop(sig) // unregister the signal handler early
-		l.Log("Received soft-stop signal; stopping...")
+		slog.InfoContext(l.Context(), "received soft-stop signal; stopping")
 		l.Stop(0)
 	case <-l.Done():
 	}
@@ -88,6 +88,6 @@ func (m signalMiddleware) hardStop(l *component.L) {
 			return
 		}
 	}
-	l.Log("Received hard-stop signal; terminating...")
+	slog.InfoContext(l.Context(), "received hard-stop signal; terminating")
 	l.Terminate()
 }

@@ -193,7 +193,7 @@ func loadFootprintComponents(l *component.L, footprint Footprint) {
 		claim := footprint.Allocations[i]
 		// Does footprint contain only enabled components?
 		if !IsEnabled(claim.Component) {
-			l.Logf("Skipping disabled component %q", claim.Component.Name)
+			slog.InfoContext(l.Context(), "skipping disabled component", "name", claim.Component.Name)
 			span.AddEvent("loader.skip", trace.WithAttributes(
 				attribute.String("component.name", claim.Component.Name),
 				attribute.Stringer("footprint.identifier", footprint.Identifier),

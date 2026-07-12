@@ -8,7 +8,7 @@
 package main
 
 import (
-	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -53,11 +53,11 @@ func main() {
 			for l.Continue() {
 				msg, err := sub.Receive(l.GraceContext())
 				if err != nil {
-					l.Error(fmt.Errorf("receive: %w", err))
+					slog.ErrorContext(l.Context(), "receive", "err", err)
 					continue
 				}
 				msg.Ack()
-				l.Log(string(msg.Body))
+				slog.InfoContext(l.Context(), string(msg.Body))
 			}
 		})
 
