@@ -17,10 +17,10 @@
 //
 // [RunProc] and [Run] accept [Option] values that configure the lifecycle before
 // it starts. The common ones are [WithName] to identify it in logs and traces,
-// [WithContext] to root it in a parent context, [WithLogger] to direct its
-// output, and [WithStopper] to hand it a channel whose closing asks the procedure
-// to stop. That stop request is what [L.Continue] and [L.Stopping] report to the
-// running code, so a procedure can wind down on its own terms.
+// [WithContext] to root it in a parent context, [WithHandler] to direct its
+// log records, and [WithStopper] to hand it a channel whose closing asks the
+// procedure to stop. That stop request is what [L.Continue] and [L.Stopping]
+// report to the running code, so a procedure can wind down on its own terms.
 //
 // # Running a program
 //

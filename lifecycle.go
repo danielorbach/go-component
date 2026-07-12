@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"runtime"
 	"runtime/pprof"
 	"strconv"
@@ -79,7 +79,7 @@ func execute(ctx context.Context, options lifecycleOptions) {
 			graceCtx: graceCtx,
 			done:     done,
 			common: common{
-				logger:         options.Logger(),
+				logger:         slog.New(options.Handler()),
 				stopping:       stopping,
 				statedHooks:    options.startedHooks,
 				completedHooks: options.completedHooks,
@@ -156,7 +156,7 @@ type L struct {
 // structures and hooks that facilitate smooth operation and graceful shutdown
 // processes.
 type common struct {
-	logger         *log.Logger
+	logger         *slog.Logger  // emits the lifecycle's own records; its handler is shared with forks
 	stopping       chan struct{} // closed when the lifecycle is shutting down gracefully
 	statedHooks    []func(name string)
 	completedHooks []func(name string)
@@ -186,7 +186,7 @@ func (l *L) Done() <-chan struct{} {
 func (l *L) exec(logic Procedure) {
 	// close done channel after all child goroutines have finished, all cleanup
 	// funcs have been called, and the completion record has been emitted, so
-	// that whoever observes Done() - including Run itself - knows the logger
+	// that whoever observes Done() - including Run itself - knows the handler
 	// has received every record of this lifecycle.
 	defer close(l.done)
 	defer func() {
@@ -209,9 +209,9 @@ func (l *L) exec(logic Procedure) {
 		//		 and sub-lifecycles. For example, l.Fatal() sets the context cancellation cause
 		// 		 based on the error from the calling procedure
 		if ctxCause := context.Cause(l.graceCtx); ctxCause != nil {
-			l.Logf("Lifecycle completed: %s", ctxCause)
+			l.emit(slog.LevelInfo, "lifecycle completed: "+ctxCause.Error())
 		} else {
-			l.Log("Lifecycle completed")
+			l.emit(slog.LevelInfo, "lifecycle completed")
 		}
 	}()
 	// defer cleanup funcs to run despite runtime.Goexit() - which is called by
@@ -283,7 +283,7 @@ func (l *L) Fork(name string, procedure Procedure, opts ...ForkOption) {
 			ctx:            ctx,
 			done:           nil,
 			stopper:        l.common.stopping,
-			logger:         l.common.logger,
+			handler:        l.common.logger.Handler(),
 			procedure:      procedure,
 			startedHooks:   l.common.statedHooks,
 			completedHooks: l.common.completedHooks,
@@ -388,27 +388,36 @@ func (l *L) Terminate() {
 	l.cancel(ErrTerminated)
 }
 
-func (l *L) log(s string) {
-	l.common.logger.Print(l.name + "$ " + s)
+// emit logs msg with the lifecycle's identity attached to the record itself,
+// so the record identifies its component under any configured handler; a
+// [NewLogHandler] in the chain recognises the identity and does not restate
+// it.
+func (l *L) emit(level slog.Level, msg string) {
+	l.common.logger.LogAttrs(l.ctx, level, msg, LogAttr(l.ctx))
 }
 
-func (l *L) Logf(format string, args ...any) {
-	// TODO: mimic testing.common.decorate for pretty output
-	l.log(fmt.Sprintf(format, args...))
-}
-
-func (l *L) Log(args ...any) {
-	l.log(fmt.Sprint(args...))
-}
-
-func (l *L) Error(err error) {
-	l.Logf("error: %v", err)
+// recordError logs err at error level and records it on the span carried by
+// the lifecycle context.
+func (l *L) recordError(err error) {
+	l.emit(slog.LevelError, "error: "+err.Error())
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)
 }
 
+func (l *L) Logf(format string, args ...any) {
+	l.emit(slog.LevelInfo, fmt.Sprintf(format, args...))
+}
+
+func (l *L) Log(args ...any) {
+	l.emit(slog.LevelInfo, fmt.Sprint(args...))
+}
+
+func (l *L) Error(err error) {
+	l.recordError(err)
+}
+
 func (l *L) Errorf(format string, a ...any) {
-	l.Error(fmt.Errorf(format, a...))
+	l.recordError(fmt.Errorf(format, a...))
 }
 
 // Fatal behaves like Error except it terminates the lifecycle.
@@ -429,7 +438,7 @@ func (l *L) Fatal(err error) {
 	default:
 	}
 
-	l.Logf("fatal error: %v", err)
+	l.emit(slog.LevelError, "fatal error: "+err.Error())
 	// marking the span as errored is a good practice
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)
@@ -538,7 +547,7 @@ func (l *L) Cleanup(fn func()) {
 
 // CleanupError registers the given function to be called after the lifecycle
 // has completed, like Cleanup; However, if the function returns an error, it
-// is logged using the Error() function.
+// is logged at error level and recorded on the lifecycle's span.
 //
 // This helper is useful for calling cleanup functions that return errors,
 // such as io.Closer.Close().
@@ -546,7 +555,7 @@ func (l *L) CleanupError(fn func() error) {
 	l.Cleanup(func() {
 		if err := fn(); err != nil {
 			// TODO: consider a more predictable way to contextually log errors
-			l.Error(fmt.Errorf("during cleanup of %s: %w", l.Name(), err))
+			l.recordError(fmt.Errorf("during cleanup of %s: %w", l.Name(), err))
 		}
 	})
 }
