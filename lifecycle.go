@@ -126,14 +126,14 @@ func pprofIncrementLabel(ctx context.Context, label string) context.Context {
 	return pprof.WithLabels(ctx, pprof.Labels(label, strconv.Itoa(d+1)))
 }
 
-// L manages concurrent execution lifecycle and supports formatted logs.
+// L manages a concurrent execution lifecycle.
 //
 // A lifecycle ends when its Procedure returns or calls Fatal. This is the
 // only way to exit a lifecycle. When called from another goroutine, Fatal will
 // not be able to exit the lifecycle.
 //
-// The other reporting methods, such as the variations of Log and Error,
-// may be called simultaneously from multiple goroutines.
+// The reporting methods other than Fatal may be called simultaneously from
+// multiple goroutines.
 type L struct {
 	ctx      context.Context
 	cancel   context.CancelCauseFunc
@@ -404,18 +404,39 @@ func (l *L) recordError(err error) {
 	span.RecordError(err)
 }
 
+// Logf logs a formatted message at info level.
+//
+// Deprecated: log through slog directly, e.g.
+// slog.InfoContext(l.Context(), "message", "key", value). Passing l.Context()
+// lets a [NewLogHandler]-wrapped handler stamp the component's attributes.
 func (l *L) Logf(format string, args ...any) {
 	l.emit(slog.LevelInfo, fmt.Sprintf(format, args...))
 }
 
+// Log logs its arguments at info level.
+//
+// Deprecated: log through slog directly, e.g.
+// slog.InfoContext(l.Context(), "message"). Passing l.Context() lets a
+// [NewLogHandler]-wrapped handler stamp the component's attributes.
 func (l *L) Log(args ...any) {
 	l.emit(slog.LevelInfo, fmt.Sprint(args...))
 }
 
+// Error logs err at error level and records it on the span carried by the
+// lifecycle context.
+//
+// Deprecated: log through slog directly, e.g.
+// slog.ErrorContext(l.Context(), "message", "err", err), and record the error
+// on a span through your tracing setup, such as an slog-to-OpenTelemetry
+// bridge handler or an explicit span.RecordError.
 func (l *L) Error(err error) {
 	l.recordError(err)
 }
 
+// Errorf is the formatting variant of [L.Error].
+//
+// Deprecated: log through slog directly, e.g.
+// slog.ErrorContext(l.Context(), "message", "key", value).
 func (l *L) Errorf(format string, a ...any) {
 	l.recordError(fmt.Errorf(format, a...))
 }

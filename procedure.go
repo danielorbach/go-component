@@ -17,9 +17,9 @@ import (
 //     complete until all goroutines started by L.Go have been completed.
 //   - L.Cleanup (and variants) registers a function to be called when the
 //     component completes.
-//   - L.Log and L.Error report logs and errors.
 //   - L.Fatal terminates the component with the given error.
-//   - L.Context returns the context associated with the component.
+//   - L.Context returns the context associated with the component; pass it
+//     to slog's Context methods so log records identify the component.
 //   - L.Terminate terminates the component, causing L.Context to be canceled.
 type Procedure interface {
 	Exec(*L)
