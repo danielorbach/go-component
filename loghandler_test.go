@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"testing"
 )
 
@@ -85,5 +86,77 @@ func TestLogHandlerCallSiteWins(t *testing.T) {
 
 	if record["component"] != "explicit" {
 		t.Errorf("call-site attribute lost: got component=%v, want explicit", record["component"])
+	}
+}
+
+// logLine logs one record through the logger built over the given handler and
+// returns the rendered text line, for asserting how often an attribute appears.
+func logLine(t *testing.T, handler func(slog.Handler) slog.Handler, log func(logger *slog.Logger)) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	log(slog.New(handler(slog.NewTextHandler(&buf, nil))))
+	return strings.TrimSpace(buf.String())
+}
+
+// TestLogHandlerStampsOnceWhenNested runs two NewLogHandler layers in one
+// chain: the outer stamps the identity onto the record, and the inner finds it
+// already there, so the line mentions the component exactly once.
+func TestLogHandlerStampsOnceWhenNested(t *testing.T) {
+	ctx := withComponentLogAttr(context.Background(), "echo")
+
+	line := logLine(t, func(base slog.Handler) slog.Handler {
+		return NewLogHandler(NewLogHandler(base))
+	}, func(logger *slog.Logger) {
+		logger.InfoContext(ctx, "ready")
+	})
+
+	if got := strings.Count(line, "component=echo"); got != 1 {
+		t.Errorf("nested handlers mentioned the component %d times in %q, want once", got, line)
+	}
+}
+
+// TestLogHandlerHonoursExplicitIdentity covers callers who attach the identity
+// themselves, from LogAttr, as a raw attribute at the call site: the handler
+// recognises the exact attribute and does not restate it.
+func TestLogHandlerHonoursExplicitIdentity(t *testing.T) {
+	ctx := withComponentLogAttr(context.Background(), "echo")
+
+	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
+		logger.LogAttrs(ctx, slog.LevelInfo, "ready", LogAttr(ctx))
+	})
+
+	if got := strings.Count(line, "component=echo"); got != 1 {
+		t.Errorf("explicitly attached identity rendered %d times in %q, want once", got, line)
+	}
+}
+
+// TestLogHandlerHonoursIdentityBakedWithWith covers callers who bake the
+// identity into a derived logger: the handler observed it through WithAttrs
+// and does not restate it from the context.
+func TestLogHandlerHonoursIdentityBakedWithWith(t *testing.T) {
+	ctx := withComponentLogAttr(context.Background(), "echo")
+
+	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
+		logger.With(LogAttr(ctx)).InfoContext(ctx, "ready")
+	})
+
+	if got := strings.Count(line, "component=echo"); got != 1 {
+		t.Errorf("baked identity rendered %d times in %q, want once", got, line)
+	}
+}
+
+// TestLogHandlerHonoursIdentityBakedBeforeGroup opens a group after baking
+// the identity: the baked attribute still renders at the root of every
+// record, so the handler must not stamp it again.
+func TestLogHandlerHonoursIdentityBakedBeforeGroup(t *testing.T) {
+	ctx := withComponentLogAttr(context.Background(), "echo")
+
+	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
+		logger.With(LogAttr(ctx)).WithGroup("req").InfoContext(ctx, "ready", "id", 7)
+	})
+
+	if got := strings.Count(line, "component=echo"); got != 1 {
+		t.Errorf("identity baked before a group rendered %d times in %q, want once", got, line)
 	}
 }

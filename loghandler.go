@@ -3,12 +3,21 @@ package component
 import (
 	"context"
 	"log/slog"
+	"slices"
 )
 
 // logHandler wraps another [slog.Handler], stamping the logging attributes
 // carried by a record's context onto that record.
 type logHandler struct {
 	next slog.Handler
+	// seen holds root-level attributes added through WithAttrs; the wrapped
+	// handler renders them on every record, so Handle must not stamp the
+	// identity again when it is among them.
+	seen []slog.Attr
+	// grouped reports whether WithGroup opened a group; attributes added
+	// after that render under qualified keys, never matching the root-level
+	// identity, so seen stops growing.
+	grouped bool
 }
 
 // NewLogHandler wraps next with a handler that stamps onto every record the
@@ -27,7 +36,9 @@ type logHandler struct {
 //
 // The stamped identity renders before the record's own attributes, mirroring
 // [slog.Logger.With], so an attribute set at the call site prevails wherever
-// later values win.
+// later values win. An identity the record already carries, whether from a
+// nested NewLogHandler, [LogAttr] at the call site, or [slog.Logger.With], is
+// not stamped again.
 func NewLogHandler(next slog.Handler) slog.Handler {
 	return logHandler{next: next}
 }
@@ -38,7 +49,7 @@ func (h logHandler) Enabled(ctx context.Context, level slog.Level) bool {
 
 func (h logHandler) Handle(ctx context.Context, record slog.Record) error {
 	attr := LogAttr(ctx)
-	if attr.Equal(slog.Attr{}) {
+	if attr.Equal(slog.Attr{}) || h.carries(record, attr) {
 		return h.next.Handle(ctx, record)
 	}
 	// Rebuild the record with the identity first, mirroring attributes baked
@@ -52,16 +63,36 @@ func (h logHandler) Handle(ctx context.Context, record slog.Record) error {
 	return h.next.Handle(ctx, stamped)
 }
 
+// carries reports whether the record already carries attr, among its own
+// attributes or baked in through WithAttrs.
+func (h logHandler) carries(record slog.Record, attr slog.Attr) bool {
+	if slices.ContainsFunc(h.seen, attr.Equal) {
+		return true
+	}
+	carried := false
+	record.Attrs(func(a slog.Attr) bool {
+		carried = a.Equal(attr)
+		return !carried
+	})
+	return carried
+}
+
 // WithAttrs and WithGroup re-wrap the derived handler so that refined loggers
 // keep stamping context attributes.
 
 func (h logHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return logHandler{next: h.next.WithAttrs(attrs)}
+	next := logHandler{next: h.next.WithAttrs(attrs), seen: h.seen, grouped: h.grouped}
+	if !h.grouped {
+		// Concat copies, so siblings derived from the same receiver never
+		// share seen's backing array.
+		next.seen = slices.Concat(h.seen, attrs)
+	}
+	return next
 }
 
 func (h logHandler) WithGroup(name string) slog.Handler {
 	if name == "" {
 		return h
 	}
-	return logHandler{next: h.next.WithGroup(name)}
+	return logHandler{next: h.next.WithGroup(name), seen: h.seen, grouped: true}
 }
