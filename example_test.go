@@ -2,9 +2,40 @@ package component_test
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/danielorbach/go-component"
 )
+
+// Component code logs for itself through slog rather than through the
+// lifecycle. Passing the lifecycle's context to one of slog's Context-suffixed
+// methods carries the component's identity to the handler, and a NewLogHandler
+// wrapper stamps it onto the record, so each line says which component wrote
+// it. The plain methods take no context and so carry no identity.
+func ExampleNewLogHandler() {
+	// Dropping the timestamp keeps this example's output reproducible; a real
+	// program has no reason to.
+	options := &slog.HandlerOptions{
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return a
+		},
+	}
+	// A real program installs this once at startup, with slog.SetDefault.
+	logger := slog.New(component.NewLogHandler(slog.NewTextHandler(os.Stdout, options)))
+
+	component.RunProc(func(l *component.L) {
+		logger.InfoContext(l.Context(), "handled message", "topic", "greetings")
+		logger.Info("handled message", "topic", "greetings")
+	}, component.WithName("pinger"))
+
+	// Output:
+	// level=INFO msg="handled message" component=pinger topic=greetings
+	// level=INFO msg="handled message" topic=greetings
+}
 
 // A component that loops over units of work until the program asks it to stop.
 // L.Continue reports false once the stop request arrives (delivered here through
