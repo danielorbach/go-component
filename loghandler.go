@@ -5,10 +5,10 @@ import (
 	"log/slog"
 )
 
-// componentLogKey is the attribute key under which a lifecycle's identity is
+// LogKey is the attribute key under which a lifecycle's identity is
 // stamped onto log records. It is the key [L.LogValue] documents, and the one a
 // caller attaches the identity under by hand.
-const componentLogKey = "component"
+const LogKey = "component"
 
 // logHandler wraps another [slog.Handler], stamping the identity of the
 // lifecycle carried by a record's context onto that record.
@@ -59,7 +59,7 @@ func (h logHandler) Handle(ctx context.Context, record slog.Record) error {
 	// Stamp the identity first so an attribute set at the call site renders
 	// later and prevails, as it would against an identity baked in with With.
 	stamped := slog.NewRecord(record.Time, record.Level, record.Message, record.PC)
-	stamped.AddAttrs(slog.Any(componentLogKey, l))
+	stamped.AddAttrs(slog.Any(LogKey, l))
 	record.Attrs(func(a slog.Attr) bool {
 		stamped.AddAttrs(a)
 		return true
@@ -72,7 +72,7 @@ func (h logHandler) Handle(ctx context.Context, record slog.Record) error {
 func carriesIdentity(record slog.Record) bool {
 	found := false
 	record.Attrs(func(a slog.Attr) bool {
-		found = a.Key == componentLogKey
+		found = a.Key == LogKey
 		return !found
 	})
 	return found
@@ -85,7 +85,7 @@ func (h logHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	next := logHandler{next: h.next.WithAttrs(attrs), grouped: h.grouped, seenIdentity: h.seenIdentity}
 	if !h.grouped {
 		for _, a := range attrs {
-			if a.Key == componentLogKey {
+			if a.Key == LogKey {
 				next.seenIdentity = true
 			}
 		}

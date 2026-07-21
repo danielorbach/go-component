@@ -29,7 +29,7 @@ func logRecord(t *testing.T, log func(logger *slog.Logger)) map[string]any {
 // componentName extracts the lifecycle name from a decoded record's nested
 // component group, reporting whether the group was present.
 func componentName(record map[string]any) (string, bool) {
-	group, ok := record[componentLogKey].(map[string]any)
+	group, ok := record[LogKey].(map[string]any)
 	if !ok {
 		return "", false
 	}
@@ -45,7 +45,7 @@ func TestLogHandlerStampsContextIdentity(t *testing.T) {
 	})
 
 	if name, ok := componentName(record); !ok || name != "echo" {
-		t.Errorf("record omitted the component identity: got %v, want name=echo", record[componentLogKey])
+		t.Errorf("record omitted the component identity: got %v, want name=echo", record[LogKey])
 	}
 	if record["msg"] != "ready" {
 		t.Errorf("record msg = %v, want ready", record["msg"])
@@ -63,8 +63,8 @@ func TestLogHandlerIgnoresBackgroundContext(t *testing.T) {
 		logger.Info("ready")
 	})
 
-	if _, ok := record[componentLogKey]; ok {
-		t.Errorf("Info without a context carried an identity: %v", record[componentLogKey])
+	if _, ok := record[LogKey]; ok {
+		t.Errorf("Info without a context carried an identity: %v", record[LogKey])
 	}
 }
 
@@ -78,7 +78,7 @@ func TestLogHandlerStampsThroughRefinedLogger(t *testing.T) {
 	})
 
 	if name, ok := componentName(record); !ok || name != "echo" {
-		t.Errorf("refined logger dropped the identity: got %v, want name=echo", record[componentLogKey])
+		t.Errorf("refined logger dropped the identity: got %v, want name=echo", record[LogKey])
 	}
 	if record["phase"] != "boot" {
 		t.Errorf("refined logger dropped its own attribute: got phase=%v, want boot", record["phase"])
@@ -92,11 +92,11 @@ func TestLogHandlerCallSiteWins(t *testing.T) {
 	ctx := withLifecycle(context.Background(), &L{name: "echo"})
 
 	record := logRecord(t, func(logger *slog.Logger) {
-		logger.InfoContext(ctx, "ready", componentLogKey, "explicit")
+		logger.InfoContext(ctx, "ready", LogKey, "explicit")
 	})
 
-	if record[componentLogKey] != "explicit" {
-		t.Errorf("call-site attribute lost: got %v=%v, want explicit", componentLogKey, record[componentLogKey])
+	if record[LogKey] != "explicit" {
+		t.Errorf("call-site attribute lost: got %v=%v, want explicit", LogKey, record[LogKey])
 	}
 }
 
@@ -135,7 +135,7 @@ func TestLogHandlerHonoursExplicitIdentity(t *testing.T) {
 	ctx := withLifecycle(context.Background(), lc)
 
 	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
-		logger.LogAttrs(ctx, slog.LevelInfo, "ready", slog.Any(componentLogKey, lc))
+		logger.LogAttrs(ctx, slog.LevelInfo, "ready", slog.Any(LogKey, lc))
 	})
 
 	if got := strings.Count(line, "component.name=echo"); got != 1 {
@@ -151,7 +151,7 @@ func TestLogHandlerHonoursIdentityBakedWithWith(t *testing.T) {
 	ctx := withLifecycle(context.Background(), lc)
 
 	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
-		logger.With(slog.Any(componentLogKey, lc)).InfoContext(ctx, "ready")
+		logger.With(slog.Any(LogKey, lc)).InfoContext(ctx, "ready")
 	})
 
 	if got := strings.Count(line, "component.name=echo"); got != 1 {
@@ -167,7 +167,7 @@ func TestLogHandlerHonoursIdentityBakedBeforeGroup(t *testing.T) {
 	ctx := withLifecycle(context.Background(), lc)
 
 	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
-		logger.With(slog.Any(componentLogKey, lc)).WithGroup("req").InfoContext(ctx, "ready", "id", 7)
+		logger.With(slog.Any(LogKey, lc)).WithGroup("req").InfoContext(ctx, "ready", "id", 7)
 	})
 
 	if got := strings.Count(line, "component.name=echo"); got != 1 {

@@ -170,9 +170,9 @@ func (l *L) Name() string {
 
 // LogValue returns the lifecycle's identity as a group of log attributes,
 // making *L an [slog.LogValuer]. A [NewLogHandler]-wrapped handler stamps this
-// value onto every record whose context carries the lifecycle, under the
-// "component" attribute key; where you log without that handler but hold the
-// lifecycle, attach it under the same key by hand, as slog.Any("component", l).
+// value onto every record whose context carries the lifecycle, under [LogKey];
+// where you log without that handler but hold the lifecycle, attach it under
+// the same key by hand, as slog.Any(LogKey, l).
 //
 // The group carries the lifecycle's name today and may gain further identity
 // over time. Logging the lifecycle rather than its name keeps those call sites
@@ -408,7 +408,7 @@ func (l *L) Terminate() {
 // [NewLogHandler] in the chain recognises the identity and does not restate
 // it.
 func (l *L) emit(level slog.Level, msg string) {
-	l.common.logger.LogAttrs(l.ctx, level, msg, slog.Any(componentLogKey, l))
+	l.common.logger.LogAttrs(l.ctx, level, msg, slog.Any(LogKey, l))
 }
 
 // recordError logs err at error level and records it on the span carried by

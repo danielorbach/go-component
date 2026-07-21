@@ -49,8 +49,8 @@
 //
 // Each lifecycle carries itself in its context, and [NewLogHandler] wraps a
 // handler so that every record whose context carries a lifecycle is stamped
-// with that lifecycle's identity, under the "component" key. Wrap the handler
-// the application installs at startup:
+// with that lifecycle's identity, under [LogKey]. Wrap the handler the
+// application installs at startup:
 //
 //	slog.SetDefault(slog.New(component.NewLogHandler(
 //		slog.NewTextHandler(os.Stderr, nil))))
@@ -58,8 +58,8 @@
 // Only the Context-suffixed methods receive a context; [slog.Info] and its
 // siblings pass [context.Background], which carries no lifecycle. Where a call
 // site holds the lifecycle but cannot route through a wrapped handler, attach
-// it by hand: a lifecycle is an [slog.LogValuer] (see [L.LogValue]), so
-// slog.Any("component", l) stamps the same identity.
+// it by hand under [LogKey]: a lifecycle is an [slog.LogValuer] (see
+// [L.LogValue]), so slog.Any(LogKey, l) stamps the same identity.
 //
 // Attach your own attributes the slog way: derive a logger with
 // [slog.Logger.With] and pass it to the code that should inherit them. The
