@@ -28,7 +28,7 @@ func EntrypointProc(main component.Proc, opts ...component.Option) {
 func Entrypoint(main component.Procedure, opts ...component.Option) {
 	opts = append([]component.Option{
 		component.WithContext(context.Background()),
-		component.WithLogHandler(slog.Default().Handler()),
+		component.WithDefaultLogHandler(),
 	}, opts...)
 	component.Run(signalMiddleware{base: main}, opts...)
 }

@@ -250,6 +250,17 @@ func WithLogHandler(handler slog.Handler) Option {
 	}
 }
 
+// WithDefaultLogHandler directs the lifecycle's own log records to the handler
+// of [slog.Default], captured when the option is applied. It is the common
+// wiring for a program that has already installed its process-wide logger and
+// wants the lifecycle's records to join it, and is shorthand for
+// WithLogHandler(slog.Default().Handler()).
+func WithDefaultLogHandler() Option {
+	return func(o *lifecycleOptions) {
+		o.handler = slog.Default().Handler()
+	}
+}
+
 // OnStarted returns an Option that adds a hook to be executed when the lifecycle
 // is started.
 func OnStarted(hook func(name string)) Option {

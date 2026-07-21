@@ -54,3 +54,20 @@ func TestWithLoggerWarns(t *testing.T) {
 		t.Errorf("applying WithLogger logged %q, want a deprecation warning", line)
 	}
 }
+
+// TestWithDefaultLogHandlerJoinsDefault verifies the shortcut routes the
+// lifecycle's records to whatever handler slog.Default carries when the option
+// is applied.
+func TestWithDefaultLogHandlerJoinsDefault(t *testing.T) {
+	var buf bytes.Buffer
+	defer slog.SetDefault(slog.Default())
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	component.RunProc(func(l *component.L) {
+		l.Log("hello")
+	}, component.WithName("default-test"), component.WithDefaultLogHandler())
+
+	if line := buf.String(); !strings.Contains(line, `"name":"default-test"`) {
+		t.Errorf("WithDefaultLogHandler did not route records to slog.Default(); got %q", line)
+	}
+}
