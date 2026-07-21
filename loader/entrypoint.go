@@ -24,10 +24,10 @@ func EntrypointProc(main component.Proc, opts ...component.Option) {
 // to stop gracefully, and a second SIGINT terminates it abruptly. The supplied
 // options are applied after these defaults, so a caller may override them.
 func Entrypoint(main component.Procedure, opts ...component.Option) {
-	opts = append(opts,
+	opts = append([]component.Option{
 		component.WithContext(context.Background()),
 		component.WithLogger(log.New(os.Stderr, "", log.LstdFlags|log.LUTC|log.Lmicroseconds)),
-	)
+	}, opts...)
 	component.Run(signalMiddleware{base: main}, opts...)
 }
 
