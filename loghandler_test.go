@@ -26,15 +26,26 @@ func logRecord(t *testing.T, log func(logger *slog.Logger)) map[string]any {
 	return record
 }
 
-func TestLogHandlerStampsContextAttrs(t *testing.T) {
-	ctx := withComponentLogAttr(context.Background(), "echo")
+// componentName extracts the lifecycle name from a decoded record's nested
+// component group, reporting whether the group was present.
+func componentName(record map[string]any) (string, bool) {
+	group, ok := record[componentLogKey].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	name, ok := group["name"].(string)
+	return name, ok
+}
+
+func TestLogHandlerStampsContextIdentity(t *testing.T) {
+	ctx := withLifecycle(context.Background(), &L{name: "echo"})
 
 	record := logRecord(t, func(logger *slog.Logger) {
 		logger.InfoContext(ctx, "ready")
 	})
 
-	if record["component"] != "echo" {
-		t.Errorf("record omitted context attribute: got component=%v, want echo", record["component"])
+	if name, ok := componentName(record); !ok || name != "echo" {
+		t.Errorf("record omitted the component identity: got %v, want name=echo", record[componentLogKey])
 	}
 	if record["msg"] != "ready" {
 		t.Errorf("record msg = %v, want ready", record["msg"])
@@ -42,50 +53,50 @@ func TestLogHandlerStampsContextAttrs(t *testing.T) {
 }
 
 // TestLogHandlerIgnoresBackgroundContext documents the stdlib constraint: the
-// non-Context methods pass context.Background, which carries no attributes, so
+// non-Context methods pass context.Background, which carries no lifecycle, so
 // the handler has nothing to stamp.
 func TestLogHandlerIgnoresBackgroundContext(t *testing.T) {
-	ctx := withComponentLogAttr(context.Background(), "echo")
+	ctx := withLifecycle(context.Background(), &L{name: "echo"})
 
 	record := logRecord(t, func(logger *slog.Logger) {
-		_ = ctx // Info does not take a context; the attribute cannot travel.
+		_ = ctx // Info does not take a context; the identity cannot travel.
 		logger.Info("ready")
 	})
 
-	if _, ok := record["component"]; ok {
-		t.Errorf("Info without a context carried an attribute: %v", record["component"])
+	if _, ok := record[componentLogKey]; ok {
+		t.Errorf("Info without a context carried an identity: %v", record[componentLogKey])
 	}
 }
 
 // TestLogHandlerStampsThroughRefinedLogger guards the re-wrapping in WithAttrs:
-// a logger refined with With must still stamp context attributes.
+// a logger refined with With must still stamp the context identity.
 func TestLogHandlerStampsThroughRefinedLogger(t *testing.T) {
-	ctx := withComponentLogAttr(context.Background(), "echo")
+	ctx := withLifecycle(context.Background(), &L{name: "echo"})
 
 	record := logRecord(t, func(logger *slog.Logger) {
 		logger.With(slog.String("phase", "boot")).InfoContext(ctx, "ready")
 	})
 
-	if record["component"] != "echo" {
-		t.Errorf("refined logger dropped context attribute: got component=%v, want echo", record["component"])
+	if name, ok := componentName(record); !ok || name != "echo" {
+		t.Errorf("refined logger dropped the identity: got %v, want name=echo", record[componentLogKey])
 	}
 	if record["phase"] != "boot" {
 		t.Errorf("refined logger dropped its own attribute: got phase=%v, want boot", record["phase"])
 	}
 }
 
-// TestLogHandlerCallSiteWins pins the precedence model: the stamped attributes
-// render before the record's own, so an explicit attribute at the call site
-// comes later and prevails wherever later values win, as in slog.Logger.With.
+// TestLogHandlerCallSiteWins pins the precedence model: the handler yields to an
+// identity the call site set for itself, so an explicit attribute under the
+// component key prevails over the framework's stamp.
 func TestLogHandlerCallSiteWins(t *testing.T) {
-	ctx := withComponentLogAttr(context.Background(), "echo")
+	ctx := withLifecycle(context.Background(), &L{name: "echo"})
 
 	record := logRecord(t, func(logger *slog.Logger) {
-		logger.InfoContext(ctx, "ready", "component", "explicit")
+		logger.InfoContext(ctx, "ready", componentLogKey, "explicit")
 	})
 
-	if record["component"] != "explicit" {
-		t.Errorf("call-site attribute lost: got component=%v, want explicit", record["component"])
+	if record[componentLogKey] != "explicit" {
+		t.Errorf("call-site attribute lost: got %v=%v, want explicit", componentLogKey, record[componentLogKey])
 	}
 }
 
@@ -103,7 +114,7 @@ func logLine(t *testing.T, handler func(slog.Handler) slog.Handler, log func(log
 // chain: the outer stamps the identity onto the record, and the inner finds it
 // already there, so the line mentions the component exactly once.
 func TestLogHandlerStampsOnceWhenNested(t *testing.T) {
-	ctx := withComponentLogAttr(context.Background(), "echo")
+	ctx := withLifecycle(context.Background(), &L{name: "echo"})
 
 	line := logLine(t, func(base slog.Handler) slog.Handler {
 		return NewLogHandler(NewLogHandler(base))
@@ -111,52 +122,55 @@ func TestLogHandlerStampsOnceWhenNested(t *testing.T) {
 		logger.InfoContext(ctx, "ready")
 	})
 
-	if got := strings.Count(line, "component=echo"); got != 1 {
+	if got := strings.Count(line, "component.name=echo"); got != 1 {
 		t.Errorf("nested handlers mentioned the component %d times in %q, want once", got, line)
 	}
 }
 
-// TestLogHandlerHonoursExplicitIdentity covers callers who attach the identity
-// themselves, from LogAttr, as a raw attribute at the call site: the handler
-// recognises the exact attribute and does not restate it.
+// TestLogHandlerHonoursExplicitIdentity covers callers who attach the lifecycle
+// themselves, as a raw attribute at the call site: the handler finds the
+// identity key already present and does not restate it.
 func TestLogHandlerHonoursExplicitIdentity(t *testing.T) {
-	ctx := withComponentLogAttr(context.Background(), "echo")
+	lc := &L{name: "echo"}
+	ctx := withLifecycle(context.Background(), lc)
 
 	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
-		logger.LogAttrs(ctx, slog.LevelInfo, "ready", LogAttr(ctx))
+		logger.LogAttrs(ctx, slog.LevelInfo, "ready", slog.Any(componentLogKey, lc))
 	})
 
-	if got := strings.Count(line, "component=echo"); got != 1 {
+	if got := strings.Count(line, "component.name=echo"); got != 1 {
 		t.Errorf("explicitly attached identity rendered %d times in %q, want once", got, line)
 	}
 }
 
 // TestLogHandlerHonoursIdentityBakedWithWith covers callers who bake the
-// identity into a derived logger: the handler observed it through WithAttrs
+// lifecycle into a derived logger: the handler observed it through WithAttrs
 // and does not restate it from the context.
 func TestLogHandlerHonoursIdentityBakedWithWith(t *testing.T) {
-	ctx := withComponentLogAttr(context.Background(), "echo")
+	lc := &L{name: "echo"}
+	ctx := withLifecycle(context.Background(), lc)
 
 	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
-		logger.With(LogAttr(ctx)).InfoContext(ctx, "ready")
+		logger.With(slog.Any(componentLogKey, lc)).InfoContext(ctx, "ready")
 	})
 
-	if got := strings.Count(line, "component=echo"); got != 1 {
+	if got := strings.Count(line, "component.name=echo"); got != 1 {
 		t.Errorf("baked identity rendered %d times in %q, want once", got, line)
 	}
 }
 
-// TestLogHandlerHonoursIdentityBakedBeforeGroup opens a group after baking
-// the identity: the baked attribute still renders at the root of every
-// record, so the handler must not stamp it again.
+// TestLogHandlerHonoursIdentityBakedBeforeGroup opens a group after baking the
+// identity: the baked attribute still renders at the root of every record, so
+// the handler must not stamp it again.
 func TestLogHandlerHonoursIdentityBakedBeforeGroup(t *testing.T) {
-	ctx := withComponentLogAttr(context.Background(), "echo")
+	lc := &L{name: "echo"}
+	ctx := withLifecycle(context.Background(), lc)
 
 	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
-		logger.With(LogAttr(ctx)).WithGroup("req").InfoContext(ctx, "ready", "id", 7)
+		logger.With(slog.Any(componentLogKey, lc)).WithGroup("req").InfoContext(ctx, "ready", "id", 7)
 	})
 
-	if got := strings.Count(line, "component=echo"); got != 1 {
+	if got := strings.Count(line, "component.name=echo"); got != 1 {
 		t.Errorf("identity baked before a group rendered %d times in %q, want once", got, line)
 	}
 }

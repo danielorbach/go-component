@@ -14,7 +14,7 @@ import (
 
 // TestWithHandlerIdentifiesComponent runs a lifecycle against a plain JSON
 // handler and verifies every record the lifecycle emits carries the component
-// name by value: no context-aware wrapping is involved.
+// identity by value: no context-aware wrapping is involved.
 func TestWithHandlerIdentifiesComponent(t *testing.T) {
 	var buf bytes.Buffer
 	component.RunProc(func(l *component.L) {
@@ -27,8 +27,9 @@ func TestWithHandlerIdentifiesComponent(t *testing.T) {
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			t.Fatalf("decoding record %q: %v", line, err)
 		}
-		if record["component"] != "logging-test" {
-			t.Errorf("record %q misses component=logging-test", strings.TrimSpace(line))
+		group, _ := record["component"].(map[string]any)
+		if group["name"] != "logging-test" {
+			t.Errorf("record %q misses component.name=logging-test", strings.TrimSpace(line))
 		}
 		if record["msg"] == "hello" {
 			sawHello = true

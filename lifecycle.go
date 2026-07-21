@@ -39,10 +39,6 @@ func execute(ctx context.Context, options lifecycleOptions) {
 	// should be started with pprof.Do to ensure that they are labelled correctly.
 	ctx = pprofIncrementLabel(ctx, "component.depth")
 	pprof.Do(ctx, pprof.Labels("component.name", options.Name()), func(ctx context.Context) {
-		// Seed the lifecycle's name as a logging attribute so records logged
-		// with this context can identify the component (see LogAttr).
-		ctx = withComponentLogAttr(ctx, options.Name())
-
 		done := make(chan struct{}) // make ahead of &L for better readability
 
 		// TODO: attach caller-defined attributes to the span
@@ -85,6 +81,12 @@ func execute(ctx context.Context, options lifecycleOptions) {
 				completedHooks: options.completedHooks,
 			},
 		}
+
+		// Carry the lifecycle on the contexts it exposes, so records logged with
+		// them identify the component through a NewLogHandler-wrapped handler. A
+		// fork replaces its parent's identity because it seeds its own lifecycle.
+		l.ctx = withLifecycle(l.ctx, l)
+		l.graceCtx = withLifecycle(l.graceCtx, l)
 
 		// propagate external stop signal to the new lifecycle
 		if options.Stopper() != nil {
@@ -406,7 +408,7 @@ func (l *L) Terminate() {
 // [NewLogHandler] in the chain recognises the identity and does not restate
 // it.
 func (l *L) emit(level slog.Level, msg string) {
-	l.common.logger.LogAttrs(l.ctx, level, msg, LogAttr(l.ctx))
+	l.common.logger.LogAttrs(l.ctx, level, msg, slog.Any(componentLogKey, l))
 }
 
 // recordError logs err at error level and records it on the span carried by

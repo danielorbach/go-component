@@ -240,7 +240,7 @@ func WithLogger(*log.Logger) Option {
 // children started via L.Go and L.Fork, to the given handler. If no handler is
 // provided, the records are discarded.
 //
-// The lifecycle attaches the identity returned by [LogAttr] to every record
+// The lifecycle attaches its own identity (see [L.LogValue]) to every record
 // it emits, so its records identify the component with any handler; wrapping
 // handler with [NewLogHandler] is needed only for the records your own code
 // logs.

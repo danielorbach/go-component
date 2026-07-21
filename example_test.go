@@ -33,7 +33,7 @@ func ExampleNewLogHandler() {
 	}, component.WithName("pinger"))
 
 	// Output:
-	// level=INFO msg="handled message" component=pinger topic=greetings
+	// level=INFO msg="handled message" component.name=pinger topic=greetings
 	// level=INFO msg="handled message" topic=greetings
 }
 
