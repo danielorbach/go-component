@@ -180,6 +180,10 @@ func (l *L) Done() <-chan struct{} {
 // completion successfully while it has been signalled to stop - it may ignore
 // the stopping signal.
 func (l *L) exec(logic Procedure) {
+	// Close done last, after cleanup has run and the completion record has been
+	// emitted. The lifecycle's completion, observed through L.Done and by Run in
+	// turn, then implies its logger has already received every record.
+	defer close(l.done)
 	defer func() {
 		// We want to log the reason for the lifecycle termination. Since we are working
 		// with two different contexts, where one is the parent of the other, it is
@@ -205,9 +209,6 @@ func (l *L) exec(logic Procedure) {
 			l.Log("Lifecycle completed")
 		}
 	}()
-	// close done channel after all child goroutines have finished and all cleanup
-	// funcs have been called.
-	defer close(l.done)
 	// defer cleanup funcs to run despite runtime.Goexit() - which is called by
 	// l.Fatal().
 	defer l.runCleanup()
