@@ -10,10 +10,10 @@ import (
 
 // Component code logs for itself through slog rather than through the
 // lifecycle. Passing the lifecycle's context to one of slog's Context-suffixed
-// methods carries the component's identity to the handler, and a NewLogHandler
+// methods carries the component's identity to the handler, and a WrapLogHandler
 // wrapper stamps it onto the record, so each line says which component wrote
 // it. The plain methods take no context and so carry no identity.
-func ExampleNewLogHandler() {
+func ExampleWrapLogHandler() {
 	// Dropping the timestamp keeps this example's output reproducible; a real
 	// program has no reason to.
 	options := &slog.HandlerOptions{
@@ -25,7 +25,7 @@ func ExampleNewLogHandler() {
 		},
 	}
 	// A real program installs this once at startup, with slog.SetDefault.
-	logger := slog.New(component.NewLogHandler(slog.NewTextHandler(os.Stdout, options)))
+	logger := slog.New(component.WrapLogHandler(slog.NewTextHandler(os.Stdout, options)))
 
 	component.RunProc(func(l *component.L) {
 		logger.InfoContext(l.Context(), "handled message", "topic", "greetings")
@@ -37,7 +37,7 @@ func ExampleNewLogHandler() {
 	// level=INFO msg="handled message" topic=greetings
 }
 
-// Where no NewLogHandler wraps the handler, a call site that holds the
+// Where no WrapLogHandler wraps the handler, a call site that holds the
 // lifecycle attaches it directly: *L is an slog.LogValuer, so passing it under
 // the "component" key (the same key the wrapped handler uses) stamps the
 // identity onto the record. This is how code reaches the identity without

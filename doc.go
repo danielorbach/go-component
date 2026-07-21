@@ -47,12 +47,12 @@
 //
 //	slog.InfoContext(l.Context(), "handled message", "topic", topic)
 //
-// Each lifecycle carries itself in its context, and [NewLogHandler] wraps a
+// Each lifecycle carries itself in its context, and [WrapLogHandler] wraps a
 // handler so that every record whose context carries a lifecycle is stamped
 // with that lifecycle's identity, under [LogKey]. Wrap the handler the
 // application installs at startup:
 //
-//	slog.SetDefault(slog.New(component.NewLogHandler(
+//	slog.SetDefault(slog.New(component.WrapLogHandler(
 //		slog.NewTextHandler(os.Stderr, nil))))
 //
 // Only the Context-suffixed methods receive a context; [slog.Info] and its

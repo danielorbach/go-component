@@ -23,13 +23,13 @@ type logHandler struct {
 	seenIdentity bool
 }
 
-// NewLogHandler wraps next with a handler that stamps onto every record the
+// WrapLogHandler wraps next with a handler that stamps onto every record the
 // identity of the lifecycle carried by that record's context (see
 // [L.LogValue]), under the "component" key. The lifecycle is read when each
 // record is handled, not when the handler is built, so it can wrap any handler,
 // in any package, at any time:
 //
-//	slog.SetDefault(slog.New(component.NewLogHandler(
+//	slog.SetDefault(slog.New(component.WrapLogHandler(
 //		slog.NewTextHandler(os.Stderr, nil))))
 //	slog.InfoContext(ctx, "ready") // carries the component identity
 //
@@ -41,9 +41,9 @@ type logHandler struct {
 // The stamped identity renders before the record's own attributes, mirroring
 // [slog.Logger.With], so an attribute set at the call site prevails wherever
 // later values win. An identity the record already carries, whether from a
-// nested NewLogHandler, an explicit slog.Any("component", l) at the call site,
+// nested WrapLogHandler, an explicit slog.Any("component", l) at the call site,
 // or one baked in with [slog.Logger.With], is left as it is and not restated.
-func NewLogHandler(next slog.Handler) slog.Handler {
+func WrapLogHandler(next slog.Handler) slog.Handler {
 	return logHandler{next: next}
 }
 

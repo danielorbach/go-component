@@ -3,7 +3,7 @@ package component
 import "context"
 
 // lifecycleKey is the context key under which a lifecycle carries itself, so a
-// [NewLogHandler]-wrapped handler can stamp the lifecycle's identity onto
+// [WrapLogHandler]-wrapped handler can stamp the lifecycle's identity onto
 // records logged with that context. The lifecycle is never handed back out
 // through the context: only the framework reads this key.
 type lifecycleKey struct{}

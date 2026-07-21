@@ -51,10 +51,10 @@ var (
 
 func init() {
 	// Any log records with a level lower than the specified LogLevel will be
-	// omitted. The component.NewLogHandler wrapping stamps the component
+	// omitted. The component.WrapLogHandler wrapping stamps the component
 	// identity onto every record logged with a lifecycle context, so logs from
 	// all loaded components arrive attributed without per-component wiring.
-	slog.SetDefault(slog.New(component.NewLogHandler(
+	slog.SetDefault(slog.New(component.WrapLogHandler(
 		slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: &LogLevel}))))
 }
 

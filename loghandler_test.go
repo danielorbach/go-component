@@ -9,14 +9,14 @@ import (
 	"testing"
 )
 
-// logRecord logs one record through a NewLogHandler-wrapped JSON handler and
+// logRecord logs one record through a WrapLogHandler-wrapped JSON handler and
 // returns it decoded into a map. Where JSON carries duplicate keys, decoding
 // keeps the last value, matching how attribute-reading backends resolve them.
 func logRecord(t *testing.T, log func(logger *slog.Logger)) map[string]any {
 	t.Helper()
 
 	var buf bytes.Buffer
-	logger := slog.New(NewLogHandler(slog.NewJSONHandler(&buf, nil)))
+	logger := slog.New(WrapLogHandler(slog.NewJSONHandler(&buf, nil)))
 	log(logger)
 
 	var record map[string]any
@@ -110,14 +110,14 @@ func logLine(t *testing.T, handler func(slog.Handler) slog.Handler, log func(log
 	return strings.TrimSpace(buf.String())
 }
 
-// TestLogHandlerStampsOnceWhenNested runs two NewLogHandler layers in one
+// TestLogHandlerStampsOnceWhenNested runs two WrapLogHandler layers in one
 // chain: the outer stamps the identity onto the record, and the inner finds it
 // already there, so the line mentions the component exactly once.
 func TestLogHandlerStampsOnceWhenNested(t *testing.T) {
 	ctx := withLifecycle(context.Background(), &L{name: "echo"})
 
 	line := logLine(t, func(base slog.Handler) slog.Handler {
-		return NewLogHandler(NewLogHandler(base))
+		return WrapLogHandler(WrapLogHandler(base))
 	}, func(logger *slog.Logger) {
 		logger.InfoContext(ctx, "ready")
 	})
@@ -134,7 +134,7 @@ func TestLogHandlerHonoursExplicitIdentity(t *testing.T) {
 	lc := &L{name: "echo"}
 	ctx := withLifecycle(context.Background(), lc)
 
-	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
+	line := logLine(t, WrapLogHandler, func(logger *slog.Logger) {
 		logger.LogAttrs(ctx, slog.LevelInfo, "ready", slog.Any(LogKey, lc))
 	})
 
@@ -150,7 +150,7 @@ func TestLogHandlerHonoursIdentityBakedWithWith(t *testing.T) {
 	lc := &L{name: "echo"}
 	ctx := withLifecycle(context.Background(), lc)
 
-	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
+	line := logLine(t, WrapLogHandler, func(logger *slog.Logger) {
 		logger.With(slog.Any(LogKey, lc)).InfoContext(ctx, "ready")
 	})
 
@@ -166,7 +166,7 @@ func TestLogHandlerHonoursIdentityBakedBeforeGroup(t *testing.T) {
 	lc := &L{name: "echo"}
 	ctx := withLifecycle(context.Background(), lc)
 
-	line := logLine(t, NewLogHandler, func(logger *slog.Logger) {
+	line := logLine(t, WrapLogHandler, func(logger *slog.Logger) {
 		logger.With(slog.Any(LogKey, lc)).WithGroup("req").InfoContext(ctx, "ready", "id", 7)
 	})
 

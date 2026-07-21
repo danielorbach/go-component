@@ -83,7 +83,7 @@ func execute(ctx context.Context, options lifecycleOptions) {
 		}
 
 		// Carry the lifecycle on the contexts it exposes, so records logged with
-		// them identify the component through a NewLogHandler-wrapped handler. A
+		// them identify the component through a WrapLogHandler-wrapped handler. A
 		// fork replaces its parent's identity because it seeds its own lifecycle.
 		l.ctx = withLifecycle(l.ctx, l)
 		l.graceCtx = withLifecycle(l.graceCtx, l)
@@ -169,7 +169,7 @@ func (l *L) Name() string {
 }
 
 // LogValue returns the lifecycle's identity as a group of log attributes,
-// making *L an [slog.LogValuer]. A [NewLogHandler]-wrapped handler stamps this
+// making *L an [slog.LogValuer]. A [WrapLogHandler]-wrapped handler stamps this
 // value onto every record whose context carries the lifecycle, under [LogKey];
 // where you log without that handler but hold the lifecycle, attach it under
 // the same key by hand, as slog.Any(LogKey, l).
@@ -405,7 +405,7 @@ func (l *L) Terminate() {
 
 // emit logs msg with the lifecycle's identity attached to the record itself,
 // so the record identifies its component under any configured handler; a
-// [NewLogHandler] in the chain recognises the identity and does not restate
+// [WrapLogHandler] in the chain recognises the identity and does not restate
 // it.
 func (l *L) emit(level slog.Level, msg string) {
 	l.common.logger.LogAttrs(l.ctx, level, msg, slog.Any(LogKey, l))
@@ -423,7 +423,7 @@ func (l *L) recordError(err error) {
 //
 // Deprecated: log through slog directly, e.g.
 // slog.InfoContext(l.Context(), "message", "key", value). Passing l.Context()
-// lets a [NewLogHandler]-wrapped handler stamp the component's attributes.
+// lets a [WrapLogHandler]-wrapped handler stamp the component's attributes.
 func (l *L) Logf(format string, args ...any) {
 	l.emit(slog.LevelInfo, fmt.Sprintf(format, args...))
 }
@@ -432,7 +432,7 @@ func (l *L) Logf(format string, args ...any) {
 //
 // Deprecated: log through slog directly, e.g.
 // slog.InfoContext(l.Context(), "message"). Passing l.Context() lets a
-// [NewLogHandler]-wrapped handler stamp the component's attributes.
+// [WrapLogHandler]-wrapped handler stamp the component's attributes.
 func (l *L) Log(args ...any) {
 	l.emit(slog.LevelInfo, fmt.Sprint(args...))
 }
