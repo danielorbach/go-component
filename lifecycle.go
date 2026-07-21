@@ -166,6 +166,19 @@ func (l *L) Name() string {
 	return l.name
 }
 
+// LogValue returns the lifecycle's identity as a group of log attributes,
+// making *L an [slog.LogValuer]. A [NewLogHandler]-wrapped handler stamps this
+// value onto every record whose context carries the lifecycle, under the
+// "component" attribute key; where you log without that handler but hold the
+// lifecycle, attach it under the same key by hand, as slog.Any("component", l).
+//
+// The group carries the lifecycle's name today and may gain further identity
+// over time. Logging the lifecycle rather than its name keeps those call sites
+// unchanged as it grows.
+func (l *L) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("name", l.name))
+}
+
 func (l *L) Context() context.Context {
 	return l.ctx
 }
