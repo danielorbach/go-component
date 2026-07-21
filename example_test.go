@@ -37,6 +37,30 @@ func ExampleNewLogHandler() {
 	// level=INFO msg="handled message" topic=greetings
 }
 
+// Where no NewLogHandler wraps the handler, a call site that holds the
+// lifecycle attaches it directly: *L is an slog.LogValuer, so passing it under
+// the "component" key (the same key the wrapped handler uses) stamps the
+// identity onto the record. This is how code reaches the identity without
+// routing every record through the framework's handler.
+func ExampleL_LogValue() {
+	// Dropping the timestamp keeps this example's output reproducible.
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return a
+		},
+	}))
+
+	component.RunProc(func(l *component.L) {
+		logger.LogAttrs(l.Context(), slog.LevelInfo, "ready", slog.Any("component", l))
+	}, component.WithName("pinger"))
+
+	// Output:
+	// level=INFO msg=ready component.name=pinger
+}
+
 // A component that loops over units of work until the program asks it to stop.
 // L.Continue reports false once the stop request arrives (delivered here through
 // WithStopper, which a real program wires to an interrupt signal), so a work
