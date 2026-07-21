@@ -17,7 +17,7 @@
 //
 // [RunProc] and [Run] accept [Option] values that configure the lifecycle before
 // it starts. The common ones are [WithName] to identify it in logs and traces,
-// [WithContext] to root it in a parent context, [WithHandler] to direct its
+// [WithContext] to root it in a parent context, [WithLogHandler] to direct its
 // log records, and [WithStopper] to hand it a channel whose closing asks the
 // procedure to stop. That stop request is what [L.Continue] and [L.Stopping]
 // report to the running code, so a procedure can wind down on its own terms.
@@ -35,7 +35,7 @@
 // # Logging
 //
 // A lifecycle logs its own records (a component starting, completing, or
-// failing) through [log/slog]. [WithHandler] directs those records at a
+// failing) through [log/slog]. [WithLogHandler] directs those records at a
 // handler; without one they are discarded, so a lifecycle embedded in a larger
 // program stays silent until that program asks for its output. A program that
 // boots through the loader inherits the process-wide default handler and need

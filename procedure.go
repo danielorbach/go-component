@@ -228,15 +228,15 @@ func WithStopper(stopper <-chan struct{}) Option {
 // ignored. It is retained for source compatibility only.
 //
 // Deprecated: the lifecycle no longer logs through a *log.Logger. Use
-// [WithHandler] to direct the lifecycle's own log records, and log from
+// [WithLogHandler] to direct the lifecycle's own log records, and log from
 // component code through slog directly.
 func WithLogger(*log.Logger) Option {
 	return func(*lifecycleOptions) {
-		slog.Warn("component.WithLogger is deprecated and its logger is ignored; use component.WithHandler")
+		slog.Warn("component.WithLogger is deprecated and its logger is ignored; use component.WithLogHandler")
 	}
 }
 
-// WithHandler directs the lifecycle's own log records, and those of its
+// WithLogHandler directs the lifecycle's own log records, and those of its
 // children started via L.Go and L.Fork, to the given handler. If no handler is
 // provided, the records are discarded.
 //
@@ -244,7 +244,7 @@ func WithLogger(*log.Logger) Option {
 // it emits, so its records identify the component with any handler; wrapping
 // handler with [WrapLogHandler] is needed only for the records your own code
 // logs.
-func WithHandler(handler slog.Handler) Option {
+func WithLogHandler(handler slog.Handler) Option {
 	return func(o *lifecycleOptions) {
 		o.handler = handler
 	}

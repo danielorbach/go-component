@@ -12,14 +12,14 @@ import (
 	"github.com/danielorbach/go-component"
 )
 
-// TestWithHandlerIdentifiesComponent runs a lifecycle against a plain JSON
+// TestWithLogHandlerIdentifiesComponent runs a lifecycle against a plain JSON
 // handler and verifies every record the lifecycle emits carries the component
 // identity by value: no context-aware wrapping is involved.
-func TestWithHandlerIdentifiesComponent(t *testing.T) {
+func TestWithLogHandlerIdentifiesComponent(t *testing.T) {
 	var buf bytes.Buffer
 	component.RunProc(func(l *component.L) {
 		l.Log("hello")
-	}, component.WithName("logging-test"), component.WithHandler(slog.NewJSONHandler(&buf, nil)))
+	}, component.WithName("logging-test"), component.WithLogHandler(slog.NewJSONHandler(&buf, nil)))
 
 	var sawHello bool
 	for line := range strings.Lines(strings.TrimSpace(buf.String())) {
