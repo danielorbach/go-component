@@ -38,8 +38,14 @@
 // failing) through [log/slog]. [WithLogHandler] directs those records at a
 // handler; without one they are discarded, so a lifecycle embedded in a larger
 // program stays silent until that program asks for its output. A program that
-// boots through the loader inherits the process-wide default handler and need
-// not pass one.
+// boots through the loader has [WithDefaultLogHandler] applied for it and need
+// not pass a handler.
+//
+// The split is deliberate. The lifecycle is a dependency, so it logs only where
+// the surrounding program points it and stays quiet by default. The loader is
+// that program's entry point, so it owns the process-wide [slog.Default] and
+// logs through it. Library code holds a sink it was given; the code that owns
+// the process reaches for the global.
 //
 // Component code logs for itself through slog rather than through the
 // lifecycle. Passing the lifecycle's context to slog's Context-suffixed methods
