@@ -2,7 +2,6 @@ package loader
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -19,14 +18,16 @@ func EntrypointProc(main component.Proc, opts ...component.Option) {
 // Entrypoint runs main as the program's root lifecycle and blocks until it, its
 // child lifecycles, and their cleanup have all finished.
 //
-// It supplies a background context and a logger that writes to standard error,
-// then installs a signal handler: the first SIGINT or SIGTERM asks the lifecycle
-// to stop gracefully, and a second SIGINT terminates it abruptly. The supplied
-// options are applied after these defaults, so a caller may override them.
+// It supplies a background context and routes the lifecycle's own log records
+// to the handler of the process-wide default slog logger, captured when
+// Entrypoint is called, so configure slog before calling it. Then it installs a
+// signal handler: the first SIGINT or SIGTERM asks the lifecycle to stop
+// gracefully, and a second SIGINT terminates it abruptly. The supplied options
+// are applied after these defaults, so a caller may override them.
 func Entrypoint(main component.Procedure, opts ...component.Option) {
 	opts = append([]component.Option{
 		component.WithContext(context.Background()),
-		component.WithLogger(log.New(os.Stderr, "", log.LstdFlags|log.LUTC|log.Lmicroseconds)),
+		component.WithDefaultLogHandler(),
 	}, opts...)
 	component.Run(signalMiddleware{base: main}, opts...)
 }
