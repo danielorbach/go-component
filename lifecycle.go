@@ -405,17 +405,41 @@ func (l *L) Terminate() {
 }
 
 // Logf logs a formatted message at info level.
+//
+// Log through slog instead, passing the lifecycle context so a
+// [WrapLogHandler]-wrapped handler stamps the component's identity, and
+// carrying the values as attributes rather than formatting them into the
+// message:
+//
+//	slog.InfoContext(l.Context(), "message", "key", value)
+//
+// Deprecated: use slog directly, as shown above.
 func (l *L) Logf(format string, args ...any) {
 	l.common.logger.InfoContext(l.ctx, fmt.Sprintf(format, args...), slog.Any(LogKey, l))
 }
 
 // Log logs its arguments at info level.
+//
+// Log through slog instead, passing the lifecycle context so a
+// [WrapLogHandler]-wrapped handler stamps the component's identity:
+//
+//	slog.InfoContext(l.Context(), "message")
+//
+// Deprecated: use slog directly, as shown above.
 func (l *L) Log(args ...any) {
 	l.common.logger.InfoContext(l.ctx, fmt.Sprint(args...), slog.Any(LogKey, l))
 }
 
 // Error logs err at error level and records it on the span carried by the
 // lifecycle context.
+//
+// Log through slog instead, and record the error on a span through your tracing
+// setup, such as an slog-to-OpenTelemetry bridge handler, or at the call site:
+//
+//	slog.ErrorContext(l.Context(), "message", "err", err)
+//	trace.SpanFromContext(l.Context()).RecordError(err)
+//
+// Deprecated: use slog directly, as shown above.
 func (l *L) Error(err error) {
 	l.common.logger.ErrorContext(l.ctx, "error", slog.Any(LogKey, l), slog.Any("err", err))
 	span := trace.SpanFromContext(l.ctx)
@@ -423,6 +447,15 @@ func (l *L) Error(err error) {
 }
 
 // Errorf is the formatting variant of [L.Error].
+//
+// Log through slog instead, carrying the values as attributes rather than
+// formatting them into the message:
+//
+//	slog.ErrorContext(l.Context(), "message", "key", value)
+//
+// See [L.Error] for also recording the error on a span.
+//
+// Deprecated: use slog directly, as shown above.
 func (l *L) Errorf(format string, a ...any) {
 	l.Error(fmt.Errorf(format, a...))
 }
