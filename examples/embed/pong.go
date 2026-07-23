@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 
+	"go.opentelemetry.io/otel/trace"
 	"gocloud.dev/pubsub"
 
 	"github.com/danielorbach/go-component"
@@ -30,7 +32,8 @@ var PongComponent = &component.Descriptor{
 			for l.Continue() {
 				msg, err := sub.Receive(l.GraceContext())
 				if err != nil {
-					l.Error(fmt.Errorf("receive: %w", err))
+					slog.ErrorContext(l.Context(), "receive", "err", err)
+					trace.SpanFromContext(l.Context()).RecordError(err)
 					continue
 				}
 				msg.Ack()
@@ -38,7 +41,8 @@ var PongComponent = &component.Descriptor{
 				echo := "ECHO " + string(msg.Body)
 				err = pub.Send(l.Context(), &pubsub.Message{Body: []byte(echo)})
 				if err != nil {
-					l.Error(fmt.Errorf("send: %w", err))
+					slog.ErrorContext(l.Context(), "send", "err", err)
+					trace.SpanFromContext(l.Context()).RecordError(err)
 				}
 				// we do not log this echo, run ProbeComponent to inspect the messages
 			}
