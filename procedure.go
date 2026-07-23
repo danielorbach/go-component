@@ -245,13 +245,24 @@ func WithDefaultLogHandler() Option {
 	}
 }
 
-// WithLogger warns through the default slog logger that its logger is ignored.
-// It is retained for source compatibility only; use [WithLogHandler] to direct
-// the lifecycle's own log records.
-func WithLogger(*log.Logger) Option {
-	return func(*lifecycleOptions) {
-		slog.Warn("component.WithLogger is ignored; use component.WithLogHandler")
+// WithLogger directs the lifecycle's own log records to the given logger by
+// writing them, as slog text, to that logger's output.
+//
+// Build the handler directly and pass it to [WithLogHandler] instead:
+//
+//	component.WithLogHandler(slog.NewTextHandler(w, nil))
+//
+// Routing through a [*log.Logger] only borrows its output writer: the logger's
+// prefix and flags are ignored, and it carries neither levels nor attributes.
+//
+// Deprecated: use [WithLogHandler], as shown above. Removal is reserved for a
+// future major version.
+func WithLogger(logger *log.Logger) Option {
+	if logger == nil {
+		return WithLogHandler(slog.DiscardHandler)
 	}
+	slog.Warn("component.WithLogger is deprecated; use component.WithLogHandler(slog.NewTextHandler(w, nil)) instead")
+	return WithLogHandler(slog.NewTextHandler(logger.Writer(), nil))
 }
 
 // OnStarted returns an Option that adds a hook to be executed when the lifecycle
