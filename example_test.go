@@ -106,6 +106,38 @@ func ExampleLogKey() {
 	// level=INFO msg="lifecycle completed" component.name=pinger
 }
 
+// A component procedure logs through slog.Default, but the lifecycle running it
+// stays silent unless given a handler. WithDefaultLogHandler points that
+// lifecycle at slog.Default too, so the procedure's logs and the lifecycle's
+// records land together, attributed to the component. A program wires each
+// lifecycle this way, and a forked child inherits the same default.
+func ExampleWithDefaultLogHandler() {
+	// A real program installs this once at startup.
+	defer slog.SetDefault(slog.Default())
+	slog.SetDefault(slog.New(component.WrapLogHandler(slog.NewTextHandler(os.Stdout, stableOptions))))
+
+	component.RunProc(func(l *component.L) {
+		slog.InfoContext(l.Context(), "ready")
+	}, component.WithName("pinger"), component.WithDefaultLogHandler())
+
+	component.RunProc(func(l *component.L) {
+		slog.InfoContext(l.Context(), "ready")
+		// A forked child inherits the default; it logs under the compound name
+		// server/worker, its own records in the same place as its parent's.
+		l.Go("worker", func(c *component.L) {
+			slog.InfoContext(c.Context(), "working")
+		})
+	}, component.WithName("server"), component.WithDefaultLogHandler())
+
+	// Output:
+	// level=INFO msg=ready component.name=pinger
+	// level=INFO msg="lifecycle completed" component.name=pinger
+	// level=INFO msg=ready component.name=server
+	// level=INFO msg=working component.name=server/worker
+	// level=INFO msg="lifecycle completed" component.name=server/worker
+	// level=INFO msg="lifecycle completed" component.name=server
+}
+
 // A lifecycle given no handler discards its own records instead of falling back
 // to slog.Default. Only the framework's records go quiet: the procedure still
 // logs for itself through slog.Default, so embedding a component silences the
