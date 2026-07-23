@@ -204,7 +204,7 @@ func (l *L) exec(logic Procedure) {
 		//		 and sub-lifecycles. For example, l.Fatal() sets the context cancellation cause
 		// 		 based on the error from the calling procedure
 		if ctxCause := context.Cause(l.graceCtx); ctxCause != nil {
-			l.common.logger.InfoContext(l.ctx, "lifecycle completed: "+ctxCause.Error())
+			l.common.logger.InfoContext(l.ctx, "lifecycle completed", slog.Any("cause", ctxCause))
 		} else {
 			l.common.logger.InfoContext(l.ctx, "lifecycle completed")
 		}
@@ -396,7 +396,7 @@ func (l *L) Log(args ...any) {
 // Error logs err at error level and records it on the span carried by the
 // lifecycle context.
 func (l *L) Error(err error) {
-	l.common.logger.ErrorContext(l.ctx, "error: "+err.Error())
+	l.common.logger.ErrorContext(l.ctx, "error", slog.Any("err", err))
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)
 }
@@ -424,7 +424,7 @@ func (l *L) Fatal(err error) {
 	default:
 	}
 
-	l.common.logger.ErrorContext(l.ctx, "fatal error: "+err.Error())
+	l.common.logger.ErrorContext(l.ctx, "fatal error", slog.Any("err", err))
 	// marking the span as errored is a good practice
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)
