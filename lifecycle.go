@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"runtime"
 	"runtime/pprof"
 	"strconv"
@@ -75,7 +75,7 @@ func execute(ctx context.Context, options lifecycleOptions) {
 			graceCtx: graceCtx,
 			done:     done,
 			common: common{
-				logger:         options.Logger(),
+				logger:         slog.New(options.Handler()),
 				stopping:       stopping,
 				statedHooks:    options.startedHooks,
 				completedHooks: options.completedHooks,
@@ -152,7 +152,7 @@ type L struct {
 // structures and hooks that facilitate smooth operation and graceful shutdown
 // processes.
 type common struct {
-	logger         *log.Logger
+	logger         *slog.Logger  // emits the lifecycle's own records; its handler is shared with forks
 	stopping       chan struct{} // closed when the lifecycle is shutting down gracefully
 	statedHooks    []func(name string)
 	completedHooks []func(name string)
@@ -204,9 +204,9 @@ func (l *L) exec(logic Procedure) {
 		//		 and sub-lifecycles. For example, l.Fatal() sets the context cancellation cause
 		// 		 based on the error from the calling procedure
 		if ctxCause := context.Cause(l.graceCtx); ctxCause != nil {
-			l.Logf("Lifecycle completed: %s", ctxCause)
+			l.common.logger.InfoContext(l.ctx, "lifecycle completed: "+ctxCause.Error())
 		} else {
-			l.Log("Lifecycle completed")
+			l.common.logger.InfoContext(l.ctx, "lifecycle completed")
 		}
 	}()
 	// defer cleanup funcs to run despite runtime.Goexit() - which is called by
@@ -278,7 +278,7 @@ func (l *L) Fork(name string, procedure Procedure, opts ...ForkOption) {
 			ctx:            ctx,
 			done:           nil,
 			stopper:        l.common.stopping,
-			logger:         l.common.logger,
+			handler:        l.common.logger.Handler(),
 			procedure:      procedure,
 			startedHooks:   l.common.statedHooks,
 			completedHooks: l.common.completedHooks,
@@ -383,25 +383,25 @@ func (l *L) Terminate() {
 	l.cancel(ErrTerminated)
 }
 
-func (l *L) log(s string) {
-	l.common.logger.Print(l.name + "$ " + s)
-}
-
+// Logf logs a formatted message at info level.
 func (l *L) Logf(format string, args ...any) {
-	// TODO: mimic testing.common.decorate for pretty output
-	l.log(fmt.Sprintf(format, args...))
+	l.common.logger.InfoContext(l.ctx, fmt.Sprintf(format, args...))
 }
 
+// Log logs its arguments at info level.
 func (l *L) Log(args ...any) {
-	l.log(fmt.Sprint(args...))
+	l.common.logger.InfoContext(l.ctx, fmt.Sprint(args...))
 }
 
+// Error logs err at error level and records it on the span carried by the
+// lifecycle context.
 func (l *L) Error(err error) {
-	l.Logf("error: %v", err)
+	l.common.logger.ErrorContext(l.ctx, "error: "+err.Error())
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)
 }
 
+// Errorf is the formatting variant of [L.Error].
 func (l *L) Errorf(format string, a ...any) {
 	l.Error(fmt.Errorf(format, a...))
 }
@@ -424,7 +424,7 @@ func (l *L) Fatal(err error) {
 	default:
 	}
 
-	l.Logf("fatal error: %v", err)
+	l.common.logger.ErrorContext(l.ctx, "fatal error: "+err.Error())
 	// marking the span as errored is a good practice
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)

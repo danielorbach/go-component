@@ -3,8 +3,8 @@ package component
 import (
 	"context"
 	"errors"
-	"io"
 	"log"
+	"log/slog"
 
 	"go.opentelemetry.io/otel"
 )
@@ -73,7 +73,7 @@ func RunProc(main Proc, opts ...Option) {
 func Run(body Procedure, opts ...Option) {
 	options := lifecycleOptions{
 		ctx:       context.Background(),
-		logger:    log.New(io.Discard, "", log.LstdFlags),
+		handler:   slog.DiscardHandler,
 		procedure: body,
 		done:      make(chan struct{}),
 	}
@@ -102,7 +102,7 @@ type lifecycleOptions struct {
 	ctx            context.Context
 	done           chan struct{}
 	stopper        <-chan struct{}
-	logger         *log.Logger
+	handler        slog.Handler
 	procedure      Procedure
 	startedHooks   []func(name string)
 	completedHooks []func(name string)
@@ -113,8 +113,8 @@ func (o lifecycleOptions) validate() error {
 	if o.ctx == nil {
 		errs = errors.Join(errs, errors.New("context is nil"))
 	}
-	if o.logger == nil {
-		errs = errors.Join(errs, errors.New("logger is nil"))
+	if o.handler == nil {
+		errs = errors.Join(errs, errors.New("handler is nil"))
 	}
 	return errs
 }
@@ -153,10 +153,10 @@ func (o lifecycleOptions) Stopper() <-chan struct{} {
 	return o.stopper
 }
 
-// Logger returns the logger configured for the lifecycle, used for logging
-// output.
-func (o lifecycleOptions) Logger() *log.Logger {
-	return o.logger
+// Handler returns the slog.Handler configured for the lifecycle, which
+// receives the lifecycle's own log records.
+func (o lifecycleOptions) Handler() slog.Handler {
+	return o.handler
 }
 
 // Procedure retrieves the main procedure associated with the lifecycle to be
@@ -224,15 +224,22 @@ func WithStopper(stopper <-chan struct{}) Option {
 	}
 }
 
-// WithLogger sets the logger used by the new lifecycle.
-// If no logger is provided, a logger that discards all messages is used.
-// The lifecycle shares this logger with all its children - started via
-// L.Go().
-//
-// TODO: using log.Llongfile causes the logger to print the wrong file because the call-site is in this package always.
-func WithLogger(logger *log.Logger) Option {
+// WithLogHandler directs the lifecycle's own log records, and those of its
+// children started via L.Go and L.Fork, to the given handler. Omitting the
+// option discards the records; a nil handler is rejected, not treated as
+// discard.
+func WithLogHandler(handler slog.Handler) Option {
 	return func(o *lifecycleOptions) {
-		o.logger = logger
+		o.handler = handler
+	}
+}
+
+// WithLogger warns through the default slog logger that its logger is ignored.
+// It is retained for source compatibility only; use [WithLogHandler] to direct
+// the lifecycle's own log records.
+func WithLogger(*log.Logger) Option {
+	return func(*lifecycleOptions) {
+		slog.Warn("component.WithLogger is ignored; use component.WithLogHandler")
 	}
 }
 
