@@ -162,6 +162,21 @@ func (l *L) Name() string {
 	return l.name
 }
 
+// LogKey is the attribute key under which a lifecycle's identity belongs in a
+// log record: [L.LogValue] is the value, and this is the key it goes under.
+const LogKey = "component"
+
+var _ slog.LogValuer = (*L)(nil)
+
+// LogValue returns the lifecycle's identity as a group of log attributes,
+// making *L an [slog.LogValuer]. Attach it under [LogKey] to attribute a record
+// to its component.
+func (l *L) LogValue() slog.Value {
+	// A group rather than a bare string: further identity can join the name
+	// here without changing how callers attach it.
+	return slog.GroupValue(slog.String("name", l.name))
+}
+
 func (l *L) Context() context.Context {
 	return l.ctx
 }

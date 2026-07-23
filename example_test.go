@@ -2,9 +2,36 @@ package component_test
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/danielorbach/go-component"
 )
+
+// stableOptions drops the timestamp, so an example's Output stays reproducible.
+// A real program keeps the timestamp.
+var stableOptions = &slog.HandlerOptions{
+	ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+		if a.Key == slog.TimeKey {
+			return slog.Attr{}
+		}
+		return a
+	},
+}
+
+// A lifecycle is an slog.LogValuer, so a call site holding one attaches the
+// component's identity by logging the lifecycle itself under component.LogKey.
+// The record then says which component wrote it.
+func ExampleL_LogValue() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, stableOptions))
+
+	component.RunProc(func(l *component.L) {
+		logger.LogAttrs(l.Context(), slog.LevelInfo, "ready", slog.Any(component.LogKey, l))
+	}, component.WithName("pinger"))
+
+	// Output:
+	// level=INFO msg=ready component.name=pinger
+}
 
 // A component that loops over units of work until the program asks it to stop.
 // L.Continue reports false once the stop request arrives (delivered here through
