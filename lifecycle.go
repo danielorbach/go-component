@@ -82,6 +82,12 @@ func execute(ctx context.Context, options lifecycleOptions) {
 			},
 		}
 
+		// Carry the lifecycle on the contexts it exposes, so records logged with
+		// them identify the component through a WrapLogHandler-wrapped handler. A
+		// fork replaces its parent's identity because it seeds its own lifecycle.
+		l.ctx = withLifecycle(l.ctx, l)
+		l.graceCtx = withLifecycle(l.graceCtx, l)
+
 		// propagate external stop signal to the new lifecycle
 		if options.Stopper() != nil {
 			go pprof.Do(ctx, pprof.Labels("component.reaper", "stopping"), func(context.Context) {
@@ -219,9 +225,9 @@ func (l *L) exec(logic Procedure) {
 		//		 and sub-lifecycles. For example, l.Fatal() sets the context cancellation cause
 		// 		 based on the error from the calling procedure
 		if ctxCause := context.Cause(l.graceCtx); ctxCause != nil {
-			l.common.logger.InfoContext(l.ctx, "lifecycle completed", slog.Any("cause", ctxCause))
+			l.common.logger.InfoContext(l.ctx, "lifecycle completed", slog.Any(LogKey, l), slog.Any("cause", ctxCause))
 		} else {
-			l.common.logger.InfoContext(l.ctx, "lifecycle completed")
+			l.common.logger.InfoContext(l.ctx, "lifecycle completed", slog.Any(LogKey, l))
 		}
 	}()
 	// defer cleanup funcs to run despite runtime.Goexit() - which is called by
@@ -400,18 +406,18 @@ func (l *L) Terminate() {
 
 // Logf logs a formatted message at info level.
 func (l *L) Logf(format string, args ...any) {
-	l.common.logger.InfoContext(l.ctx, fmt.Sprintf(format, args...))
+	l.common.logger.InfoContext(l.ctx, fmt.Sprintf(format, args...), slog.Any(LogKey, l))
 }
 
 // Log logs its arguments at info level.
 func (l *L) Log(args ...any) {
-	l.common.logger.InfoContext(l.ctx, fmt.Sprint(args...))
+	l.common.logger.InfoContext(l.ctx, fmt.Sprint(args...), slog.Any(LogKey, l))
 }
 
 // Error logs err at error level and records it on the span carried by the
 // lifecycle context.
 func (l *L) Error(err error) {
-	l.common.logger.ErrorContext(l.ctx, "error", slog.Any("err", err))
+	l.common.logger.ErrorContext(l.ctx, "error", slog.Any(LogKey, l), slog.Any("err", err))
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)
 }
@@ -439,7 +445,7 @@ func (l *L) Fatal(err error) {
 	default:
 	}
 
-	l.common.logger.ErrorContext(l.ctx, "fatal error", slog.Any("err", err))
+	l.common.logger.ErrorContext(l.ctx, "fatal error", slog.Any(LogKey, l), slog.Any("err", err))
 	// marking the span as errored is a good practice
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)
