@@ -49,3 +49,34 @@ func ExampleL_Stopping() {
 	// serving
 	// stopped
 }
+
+// job is a named [component.Procedure]: a type carrying its own data whose Exec
+// method L.Fork runs. L.Go and L.ForkE take a function instead and adapt it.
+type job struct{ msg string }
+
+func (j job) Exec(*component.L) {
+	fmt.Println(j.msg)
+}
+
+// A lifecycle manages the goroutines it spawns: RunProc returns only after every
+// child it started has finished. The three methods differ in what they accept -
+// L.Go a plain [component.Proc], L.ForkE a [component.ProcE] whose returned error
+// terminates the component, and L.Fork any [component.Procedure], such as job.
+func Example_managedGoroutines() {
+	component.RunProc(func(l *component.L) {
+		l.Go("go", func(*component.L) {
+			fmt.Println("Go ran a Proc")
+		})
+		l.ForkE("forkE", func(*component.L) error {
+			fmt.Println("ForkE ran a ProcE")
+			return nil
+		})
+		l.Fork("fork", job{msg: "Fork ran a named Procedure"})
+	}, component.WithName("parent"))
+	// All three lines appear because RunProc waited for every child to finish.
+
+	// Unordered output:
+	// Go ran a Proc
+	// ForkE ran a ProcE
+	// Fork ran a named Procedure
+}
