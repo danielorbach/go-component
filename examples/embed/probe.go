@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/danielorbach/go-component"
 )
@@ -32,15 +35,17 @@ var ProbeComponent = &component.Descriptor{
 				msg, err := sub.Receive(ctx)
 				switch {
 				case errors.Is(err, context.Canceled):
-					l.Log("stopping:", context.Cause(l.Context()))
+					slog.InfoContext(l.Context(), "stopping", "cause", context.Cause(l.Context()))
 					// the loop will stop because of l.Continue
 				case errors.Is(err, context.DeadlineExceeded):
-					l.Errorf("timeout while probing")
+					slog.ErrorContext(l.Context(), "timeout while probing")
+					trace.SpanFromContext(l.Context()).RecordError(err)
 				case err != nil:
-					l.Errorf("receive: %w", err)
+					slog.ErrorContext(l.Context(), "receive", "err", err)
+					trace.SpanFromContext(l.Context()).RecordError(err)
 				default:
 					msg.Ack()
-					l.Log(msg.Body)
+					slog.InfoContext(l.Context(), "received", "body", string(msg.Body))
 				}
 			}
 

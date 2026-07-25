@@ -8,9 +8,10 @@
 package main
 
 import (
-	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/danielorbach/go-component"
 	"github.com/danielorbach/go-component/loader"
@@ -53,11 +54,12 @@ func main() {
 			for l.Continue() {
 				msg, err := sub.Receive(l.GraceContext())
 				if err != nil {
-					l.Error(fmt.Errorf("receive: %w", err))
+					slog.ErrorContext(l.Context(), "receive", "err", err)
+					trace.SpanFromContext(l.Context()).RecordError(err)
 					continue
 				}
 				msg.Ack()
-				l.Log(string(msg.Body))
+				slog.InfoContext(l.Context(), "received", "body", string(msg.Body))
 			}
 		})
 

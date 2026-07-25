@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"gocloud.dev/pubsub"
 
 	"github.com/danielorbach/go-component"
@@ -44,19 +46,20 @@ var PingComponent = &component.Descriptor{
 			options := options.(PingOptions)
 			t := time.NewTicker(PingInterval)
 			defer t.Stop()
-			l.Logf("pinging every %v", PingInterval)
+			slog.InfoContext(l.Context(), "pinging", "interval", PingInterval)
 
 			for l.Continue() {
 				select {
 				case <-t.C:
 					err := pub.Send(l.Context(), &pubsub.Message{Body: []byte(options.Data)})
 					if err != nil {
-						l.Error(fmt.Errorf("send ping: %w", err))
+						slog.ErrorContext(l.Context(), "send ping", "err", err)
+						trace.SpanFromContext(l.Context()).RecordError(err)
 					}
 				case <-l.Stopping():
-					l.Log("graceful stop")
+					slog.InfoContext(l.Context(), "graceful stop")
 				case <-l.Context().Done():
-					l.Log("abrupt stop:", context.Cause(l.Context()))
+					slog.InfoContext(l.Context(), "abrupt stop", "cause", context.Cause(l.Context()))
 				}
 			}
 		})

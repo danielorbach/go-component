@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"runtime"
 	"runtime/pprof"
 	"strconv"
@@ -75,12 +75,18 @@ func execute(ctx context.Context, options lifecycleOptions) {
 			graceCtx: graceCtx,
 			done:     done,
 			common: common{
-				logger:         options.Logger(),
+				logger:         slog.New(options.Handler()),
 				stopping:       stopping,
 				statedHooks:    options.startedHooks,
 				completedHooks: options.completedHooks,
 			},
 		}
+
+		// Carry the lifecycle on the contexts it exposes, so records logged with
+		// them identify the component through a WrapLogHandler-wrapped handler. A
+		// fork replaces its parent's identity because it seeds its own lifecycle.
+		l.ctx = withLifecycle(l.ctx, l)
+		l.graceCtx = withLifecycle(l.graceCtx, l)
 
 		// propagate external stop signal to the new lifecycle
 		if options.Stopper() != nil {
@@ -152,7 +158,7 @@ type L struct {
 // structures and hooks that facilitate smooth operation and graceful shutdown
 // processes.
 type common struct {
-	logger         *log.Logger
+	logger         *slog.Logger  // emits the lifecycle's own records; its handler is shared with forks
 	stopping       chan struct{} // closed when the lifecycle is shutting down gracefully
 	statedHooks    []func(name string)
 	completedHooks []func(name string)
@@ -160,6 +166,21 @@ type common struct {
 
 func (l *L) Name() string {
 	return l.name
+}
+
+// LogKey is the attribute key under which a lifecycle's identity belongs in a
+// log record: [L.LogValue] is the value, and this is the key it goes under.
+const LogKey = "component"
+
+var _ slog.LogValuer = (*L)(nil)
+
+// LogValue returns the lifecycle's identity as a group of log attributes,
+// making *L an [slog.LogValuer]. Attach it under [LogKey] to attribute a record
+// to its component.
+func (l *L) LogValue() slog.Value {
+	// A group rather than a bare string: further identity can join the name
+	// here without changing how callers attach it.
+	return slog.GroupValue(slog.String("name", l.name))
 }
 
 func (l *L) Context() context.Context {
@@ -180,6 +201,10 @@ func (l *L) Done() <-chan struct{} {
 // completion successfully while it has been signalled to stop - it may ignore
 // the stopping signal.
 func (l *L) exec(logic Procedure) {
+	// Close done last, after cleanup has run and the completion record has been
+	// emitted. The lifecycle's completion, observed through L.Done and by Run in
+	// turn, then implies its logger has already received every record.
+	defer close(l.done)
 	defer func() {
 		// We want to log the reason for the lifecycle termination. Since we are working
 		// with two different contexts, where one is the parent of the other, it is
@@ -200,14 +225,11 @@ func (l *L) exec(logic Procedure) {
 		//		 and sub-lifecycles. For example, l.Fatal() sets the context cancellation cause
 		// 		 based on the error from the calling procedure
 		if ctxCause := context.Cause(l.graceCtx); ctxCause != nil {
-			l.Logf("Lifecycle completed: %s", ctxCause)
+			l.common.logger.InfoContext(l.ctx, "lifecycle completed", slog.Any(LogKey, l), slog.Any("cause", ctxCause))
 		} else {
-			l.Log("Lifecycle completed")
+			l.common.logger.InfoContext(l.ctx, "lifecycle completed", slog.Any(LogKey, l))
 		}
 	}()
-	// close done channel after all child goroutines have finished and all cleanup
-	// funcs have been called.
-	defer close(l.done)
 	// defer cleanup funcs to run despite runtime.Goexit() - which is called by
 	// l.Fatal().
 	defer l.runCleanup()
@@ -277,7 +299,7 @@ func (l *L) Fork(name string, procedure Procedure, opts ...ForkOption) {
 			ctx:            ctx,
 			done:           nil,
 			stopper:        l.common.stopping,
-			logger:         l.common.logger,
+			handler:        l.common.logger.Handler(),
 			procedure:      procedure,
 			startedHooks:   l.common.statedHooks,
 			completedHooks: l.common.completedHooks,
@@ -382,25 +404,58 @@ func (l *L) Terminate() {
 	l.cancel(ErrTerminated)
 }
 
-func (l *L) log(s string) {
-	l.common.logger.Print(l.name + "$ " + s)
-}
-
+// Logf logs a formatted message at info level.
+//
+// Log through slog instead, passing the lifecycle context so a
+// [WrapLogHandler]-wrapped handler stamps the component's identity, and
+// carrying the values as attributes rather than formatting them into the
+// message:
+//
+//	slog.InfoContext(l.Context(), "message", "key", value)
+//
+// Deprecated: use slog directly, as shown above.
 func (l *L) Logf(format string, args ...any) {
-	// TODO: mimic testing.common.decorate for pretty output
-	l.log(fmt.Sprintf(format, args...))
+	l.common.logger.InfoContext(l.ctx, fmt.Sprintf(format, args...), slog.Any(LogKey, l))
 }
 
+// Log logs its arguments at info level.
+//
+// Log through slog instead, passing the lifecycle context so a
+// [WrapLogHandler]-wrapped handler stamps the component's identity:
+//
+//	slog.InfoContext(l.Context(), "message")
+//
+// Deprecated: use slog directly, as shown above.
 func (l *L) Log(args ...any) {
-	l.log(fmt.Sprint(args...))
+	l.common.logger.InfoContext(l.ctx, fmt.Sprint(args...), slog.Any(LogKey, l))
 }
 
+// Error logs err at error level and records it on the span carried by the
+// lifecycle context.
+//
+// Log through slog instead, and record the error on a span through your tracing
+// setup, such as an slog-to-OpenTelemetry bridge handler, or at the call site:
+//
+//	slog.ErrorContext(l.Context(), "message", "err", err)
+//	trace.SpanFromContext(l.Context()).RecordError(err)
+//
+// Deprecated: use slog directly, as shown above.
 func (l *L) Error(err error) {
-	l.Logf("error: %v", err)
+	l.common.logger.ErrorContext(l.ctx, "error", slog.Any(LogKey, l), slog.Any("err", err))
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)
 }
 
+// Errorf is the formatting variant of [L.Error].
+//
+// Log through slog instead, carrying the values as attributes rather than
+// formatting them into the message:
+//
+//	slog.ErrorContext(l.Context(), "message", "key", value)
+//
+// See [L.Error] for also recording the error on a span.
+//
+// Deprecated: use slog directly, as shown above.
 func (l *L) Errorf(format string, a ...any) {
 	l.Error(fmt.Errorf(format, a...))
 }
@@ -423,7 +478,7 @@ func (l *L) Fatal(err error) {
 	default:
 	}
 
-	l.Logf("fatal error: %v", err)
+	l.common.logger.ErrorContext(l.ctx, "fatal error", slog.Any(LogKey, l), slog.Any("err", err))
 	// marking the span as errored is a good practice
 	span := trace.SpanFromContext(l.ctx)
 	span.RecordError(err)

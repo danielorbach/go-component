@@ -17,18 +17,86 @@
 //
 // [RunProc] and [Run] accept [Option] values that configure the lifecycle before
 // it starts. The common ones are [WithName] to identify it in logs and traces,
-// [WithContext] to root it in a parent context, [WithLogger] to direct its
-// output, and [WithStopper] to hand it a channel whose closing asks the procedure
-// to stop. That stop request is what [L.Continue] and [L.Stopping] report to the
-// running code, so a procedure can wind down on its own terms.
+// [WithContext] to root it in a parent context, [WithLogHandler] to direct its
+// log records, and [WithStopper] to hand it a channel whose closing asks the
+// procedure to stop. That stop request is what [L.Continue] and [L.Stopping]
+// report to the running code, so a procedure can wind down on its own terms.
 //
 // # Running a program
 //
 // A standalone program rarely calls [RunProc] itself. The
 // [github.com/danielorbach/go-component/loader] subpackage provides Entrypoint,
-// which installs a context, a logger, and an interrupt handler before running
+// which installs a context, log routing, and an interrupt handler before running
 // the procedure, so that pressing Ctrl-C or receiving a SIGTERM (as Kubernetes
 // sends on shutdown) becomes the stop request the lifecycle observes. Reach for
 // [RunProc] or [Run] when embedding a lifecycle inside a larger program or a
 // test.
+//
+// # Logging
+//
+// A lifecycle logs its own records (a component starting, completing, or
+// failing) through [log/slog]. [WithLogHandler] directs those records at a
+// handler; without one they are discarded, so a lifecycle embedded in a larger
+// program stays silent until that program asks for its output. A program that
+// boots through the loader has [WithDefaultLogHandler] applied for it and need
+// not pass a handler.
+//
+// Embedding a lifecycle adds no logging of its own: it writes only to the
+// handler you give it and never sets or reads the process-wide [slog.Default].
+// Sending records to that global is the surrounding program's decision, not the
+// lifecycle's.
+//
+// A procedure logs for itself through slog rather than through the lifecycle.
+// Passing the lifecycle's context to slog's Context-suffixed methods is what
+// ties a record to the component that wrote it:
+//
+//	slog.InfoContext(l.Context(), "handled message", "topic", topic)
+//
+// Each lifecycle carries itself in its context, and [WrapLogHandler] wraps a
+// handler so that every record whose context carries a lifecycle is stamped
+// with that lifecycle's identity, under [LogKey]. Wrap the handler the
+// application installs at startup:
+//
+//	slog.SetDefault(slog.New(component.WrapLogHandler(slog.NewTextHandler(os.Stderr, nil))))
+//
+// Only the Context-suffixed methods receive a context; [slog.Info] and its
+// siblings pass [context.Background], which carries no lifecycle. Where a call
+// site holds the lifecycle but cannot route through a wrapped handler, attach
+// it by hand under [LogKey]: a lifecycle is an [slog.LogValuer] (see
+// [L.LogValue]), so slog.Any(LogKey, l) stamps the same identity.
+//
+// Attach your own attributes the slog way: derive a logger with
+// [slog.Logger.With] and pass it to the code that should inherit them. The
+// framework offers no facility for stashing attributes in a context to be
+// logged later; slog itself declined such an API, holding that logging state
+// belongs on a logger rather than travelling implicitly through a context.
+//
+// Such a logger can carry the component identity too, not only your own
+// attributes: bake in slog.Any(LogKey, l) and a [WrapLogHandler]-wrapped
+// handler recognizes it rather than stamping a second one. That is one way to
+// attach the identity; the call site is another. Use one, not both, or the
+// component is named twice, as the examples on [WrapLogHandler] show.
+//
+// The lifecycle's string-formatting methods — [L.Log], [L.Logf], [L.Error] and
+// [L.Errorf] — predate slog and are deprecated; each names the slog call to
+// write in its place. [L.Fatal] and [L.Fatalf] remain, being control flow that
+// happens to log rather than a way to format a message.
+//
+// # Log levels
+//
+// slog's levels, from [slog.LevelDebug] to [slog.LevelError], are available to
+// a procedure directly. The minimum level is a property of the handler the
+// application installs rather than of the lifecycle, and is set through
+// [slog.HandlerOptions]. A program that boots through the loader gets that
+// lever as its -loglevel command-line flag.
+//
+// # Correlating logs with traces
+//
+// A component that handles messages for hours emits records throughout, and an
+// operator reading one of them often needs the trace for the work that wrote
+// it. A handler sees the context of each call site, so it can read the active
+// span from it: install an OpenTelemetry slog bridge as the handler, and every
+// record carries the identifiers of the span it was written under. As with the
+// component identity, this reaches only the records written through slog's
+// Context-suffixed methods.
 package component

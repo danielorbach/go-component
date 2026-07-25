@@ -50,9 +50,12 @@ var (
 )
 
 func init() {
-	// Any log records with a level lower than the specified LogLevel will be
-	// omitted.
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: &LogLevel})))
+	// Records below LogLevel are omitted. The component.WrapLogHandler wrapping
+	// stamps the component identity onto every record logged with a lifecycle
+	// context, so logs from all loaded components arrive attributed without
+	// per-component wiring.
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: &LogLevel})
+	slog.SetDefault(slog.New(component.WrapLogHandler(handler)))
 }
 
 func init() {
@@ -190,7 +193,7 @@ func loadFootprintComponents(l *component.L, footprint Footprint) {
 		claim := footprint.Allocations[i]
 		// Does footprint contain only enabled components?
 		if !IsEnabled(claim.Component) {
-			l.Logf("Skipping disabled component %q", claim.Component.Name)
+			slog.InfoContext(l.Context(), "skipping disabled component", "name", claim.Component.Name)
 			span.AddEvent("loader.skip", trace.WithAttributes(
 				attribute.String("component.name", claim.Component.Name),
 				attribute.Stringer("footprint.identifier", footprint.Identifier),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"time"
 
@@ -116,7 +117,7 @@ var SourceComponent = &component.Descriptor{
 				case <-t.C:
 					err := pub.Send(l.Context(), &pubsub.Message{Body: options.Message})
 					if err != nil {
-						l.Errorf("send: %w", err)
+						slog.ErrorContext(l.Context(), "send", "err", err)
 					}
 				case <-l.Stopping():
 					// the earliest signal to stop a long-running component is the
@@ -178,7 +179,7 @@ var SinkComponent = &component.Descriptor{
 	sink: continually subscribes to messages from the agreed-upon Linkage (interest)
 	
 	The sink component receives simple messages from the source component and echoes
-	them to the lifecycle logger.
+	them to the log.
 	`,
 	Bootstrap: func(l *component.L, linker component.Linker, options any) error {
 		// establishing a link to another component is part of the initialization
@@ -209,15 +210,16 @@ var SinkComponent = &component.Descriptor{
 					// context.Cause will return ErrStopped if this context was
 					// canceled due to the component stopping.
 					if !errors.Is(context.Cause(l.GraceContext()), component.ErrStopped) {
-						l.Errorf("receive: %w", err)
+						slog.ErrorContext(l.Context(), "receive", "err", err)
 					}
 					continue
 				}
 				// ack messages received from interests as soon as possible,
 				// otherwise they may be received again.
 				msg.Ack()
-				// the lifecycle logger is always a uniform way to log messages from components
-				l.Log("ECHO", string(msg.Body))
+				// logging with the lifecycle context keeps records attributable
+				// to the component that produced them
+				slog.InfoContext(l.Context(), "ECHO", "body", string(msg.Body))
 			}
 		})
 
