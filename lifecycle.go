@@ -359,6 +359,10 @@ func (l *L) Stopping() <-chan struct{} {
 // Continue returns false if the lifecycle has been signalled to stop, otherwise
 // it returns true indicating that the lifecycle should continue.
 //
+// Continue reports only the graceful-stop signal; cancellation of [L.Context]
+// does not change its result. A loop whose work returns when its context is
+// cancelled must return rather than retry that cancellation.
+//
 // The following pattern is recommended:
 //
 //	for l.Continue() {

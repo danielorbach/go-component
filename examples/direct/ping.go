@@ -65,6 +65,7 @@ var PingComponent = &component.Descriptor{
 					slog.InfoContext(l.Context(), "graceful stop")
 				case <-l.Context().Done():
 					slog.InfoContext(l.Context(), "abrupt stop", "cause", context.Cause(l.Context()))
+					return
 				}
 			}
 		})

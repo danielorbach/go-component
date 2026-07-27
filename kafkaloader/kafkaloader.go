@@ -74,8 +74,12 @@ func (x Loader) Exec(l *component.L) {
 		// delivered message context from which to continue a trace.
 		m, err := control.Receive(l.GraceContext())
 		if err != nil {
-			if errors.Is(err, context.Canceled) && errors.Is(context.Cause(l.GraceContext()), component.ErrStopped) {
-				break
+			if errors.Is(err, context.Canceled) {
+				if errors.Is(context.Cause(l.GraceContext()), component.ErrStopped) {
+					break
+				}
+				slog.InfoContext(l.Context(), "footprint receiver canceled", "cause", context.Cause(l.Context()))
+				return
 			}
 			slog.ErrorContext(l.Context(), "receive footprint", "err", err)
 			continue

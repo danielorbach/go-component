@@ -32,7 +32,7 @@ var ProbeComponent = &component.Descriptor{
 		l.CleanupBackground(sub.Shutdown)
 
 		l.Go("observer", func(l *component.L) {
-			probe := func() {
+			probe := func() bool {
 				ctx, cancel := context.WithTimeout(l.GraceContext(), options.(ProbeOptions).Timeout)
 				defer cancel()
 				ctx, span := probeTracer.Start(ctx, "probe.receive", trace.WithSpanKind(trace.SpanKindConsumer))
@@ -42,7 +42,7 @@ var ProbeComponent = &component.Descriptor{
 				switch {
 				case errors.Is(err, context.Canceled):
 					slog.InfoContext(ctx, "stopping", "cause", context.Cause(l.Context()))
-					// the loop will stop because of l.Continue
+					return false
 				case errors.Is(err, context.DeadlineExceeded):
 					slog.ErrorContext(ctx, "timeout while probing")
 					span.RecordError(err)
@@ -55,10 +55,13 @@ var ProbeComponent = &component.Descriptor{
 					msg.Ack()
 					slog.InfoContext(ctx, "received", "body", string(msg.Body))
 				}
+				return true
 			}
 
 			for l.Continue() {
-				probe()
+				if !probe() {
+					return
+				}
 			}
 		})
 

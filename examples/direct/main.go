@@ -8,6 +8,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -59,7 +61,11 @@ func main() {
 			for l.Continue() {
 				ctx, span := probeTracer.Start(l.GraceContext(), "probe.receive", trace.WithSpanKind(trace.SpanKindConsumer))
 				msg, err := sub.Receive(ctx)
-				if err != nil {
+				switch {
+				case errors.Is(err, context.Canceled):
+					span.End()
+					return
+				case err != nil:
 					slog.ErrorContext(ctx, "receive", "err", err)
 					span.RecordError(err)
 					span.SetStatus(codes.Error, err.Error())
