@@ -16,11 +16,12 @@
 // # Configuring a lifecycle
 //
 // [RunProc] and [Run] accept [Option] values that configure the lifecycle before
-// it starts. The common ones are [WithName] to identify it in logs and traces,
-// [WithContext] to root it in a parent context, [WithLogHandler] to direct its
-// log records, and [WithStopper] to hand it a channel whose closing asks the
-// procedure to stop. That stop request is what [L.Continue] and [L.Stopping]
-// report to the running code, so a procedure can wind down on its own terms.
+// it starts. The common ones are [WithName] to identify it in logs and profiles,
+// [WithContext] to derive its cancellation, deadlines, and values,
+// [WithLogHandler] to direct its log records, and [WithStopper] to hand it a
+// channel whose closing asks the procedure to stop. That stop request is what
+// [L.Continue] and [L.Stopping] report to the running code, so a procedure can
+// wind down on its own terms.
 //
 // # Running a program
 //
@@ -89,6 +90,26 @@
 // application installs rather than of the lifecycle, and is set through
 // [slog.HandlerOptions]. A program that boots through the loader gets that
 // lever as its -loglevel command-line flag.
+//
+// # Tracing
+//
+// A lifecycle is a control-flow boundary, not a trace operation. Component does
+// not hold a span open while a procedure runs: a long-lived component can
+// process many unrelated operations, and making all of them children of one
+// lifecycle span would create one unbounded trace.
+//
+// [L.Context] therefore carries no active span inherited through [WithContext].
+// It still derives cancellation, deadlines, values, and baggage from that
+// context. Start a bounded span where an operation begins and pass the returned
+// context through that operation:
+//
+//	ctx, span := tracer.Start(l.Context(), "handle")
+//	defer span.End()
+//	slog.InfoContext(ctx, "handled message")
+//
+// A span started directly from [L.Context] is the root of an independent trace.
+// Child spans started from the returned ctx retain the ordinary OpenTelemetry
+// parent-child relationship.
 //
 // # Correlating logs with traces
 //

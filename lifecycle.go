@@ -38,16 +38,13 @@ func execute(ctx context.Context, options lifecycleOptions) {
 	// lifecycle are labelled with the lifecycle name. Note, all related goroutines
 	// should be started with pprof.Do to ensure that they are labelled correctly.
 	ctx = pprofIncrementLabel(ctx, "component.depth")
+	// A lifecycle carries cancellation, deadlines, and values from its parent,
+	// but it is not itself a trace operation. Override any current span with an
+	// invalid SpanContext so bounded operations started from L.Context begin
+	// independent traces.
+	ctx = trace.ContextWithSpanContext(ctx, trace.SpanContext{})
 	pprof.Do(ctx, pprof.Labels("component.name", options.Name()), func(ctx context.Context) {
 		done := make(chan struct{}) // make ahead of &L for better readability
-
-		// TODO: attach caller-defined attributes to the span
-		ctx, span := tracer.Start(ctx, options.SpanName())
-		// the span ends when the lifecycle completes - this must be done asynchronously
-		go pprof.Do(ctx, pprof.Labels("component.reaper", "span"), func(context.Context) {
-			<-done
-			span.End()
-		})
 
 		ctx, cancel := context.WithCancelCause(ctx)
 		// do not leak a context.Context
@@ -183,6 +180,10 @@ func (l *L) LogValue() slog.Value {
 	return slog.GroupValue(slog.String("name", l.name))
 }
 
+// Context returns the lifecycle context. It carries cancellation, deadlines,
+// values, and component identity, but no active span inherited from the
+// lifecycle's parent. Start a bounded operation span from this context at the
+// call site that owns the work.
 func (l *L) Context() context.Context {
 	return l.ctx
 }
@@ -292,10 +293,9 @@ func (l *L) Fork(name string, procedure Procedure, opts ...ForkOption) {
 	l.wg.Add(1)
 	go pprof.Do(l.ctx, pprof.Labels("parent-component", l.name), func(ctx context.Context) {
 		defer l.wg.Done()
-		fullName := l.name + "/" + name // the child's name is appended to that of the parent (also used for tracing)
+		fullName := l.name + "/" + name // the child's name is appended to that of the parent
 		options := lifecycleOptions{
 			name:           fullName,
-			span:           fullName,
 			ctx:            ctx,
 			done:           nil,
 			stopper:        l.common.stopping,
