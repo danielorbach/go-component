@@ -19,6 +19,11 @@ import (
 //     to slog's Context methods so log records identify the component.
 //   - L.Terminate cancels the component context when managed children must be
 //     told to exit before the procedure returns.
+//
+// Returning from Exec completes the procedure, after which the lifecycle waits
+// for managed children and runs cleanup. Returning does not cancel [L.Context];
+// call [L.Terminate] before returning when managed children need cancellation
+// in order to exit.
 type Procedure interface {
 	Exec(*L)
 }
@@ -39,24 +44,25 @@ func (f Proc) Exec(l *L) {
 // The ProcE type is an adapter to allow the use of ordinary functions as
 // component Procedure.
 //
-// If f is a function with the appropriate signature,
-// ProcE(f) is a Procedure that calls f and then calls Fatal if it returned a
-// non-nil error.
+// If f is a function with the appropriate signature, ProcE(f) is a Procedure
+// that calls f. If f returns a non-nil error, ProcE cancels the lifecycle with
+// that error as its cause and then returns normally. Cancellation tells managed
+// children to exit before the lifecycle waits for them.
 //
 // See notes on Procedure for more details about this function.
 type ProcE func(*L) error
 
 func (f ProcE) Exec(l *L) {
 	if err := f(l); err != nil {
-		l.Fatal(err)
+		l.cancel(err)
 	}
 }
 
 // RunProc runs the provided procedure function, passing it a new lifecycle.
 //
 // The function blocks until the lifecycle has completed; i.e., until the main
-// function has returned (or called L.Fatal), all its child lifecycles have
-// completed, and all cleanup functions have been called.
+// function has returned, all its child lifecycles have completed, and all
+// cleanup functions have been called.
 func RunProc(main Proc, opts ...Option) {
 	Run(main, opts...)
 }
@@ -64,8 +70,8 @@ func RunProc(main Proc, opts ...Option) {
 // Run runs the provided procedure, passing it a new lifecycle.
 //
 // The function blocks until the lifecycle has completed; i.e., until the main
-// function has returned (or called L.Fatal), all its child lifecycles have
-// completed, and all cleanup functions have been called.
+// function has returned, all its child lifecycles have completed, and all
+// cleanup functions have been called.
 func Run(body Procedure, opts ...Option) {
 	options := lifecycleOptions{
 		ctx:       context.Background(),

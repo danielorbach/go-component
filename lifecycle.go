@@ -10,9 +10,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // TODO(@danielorbach): We think we can move Run() to lifecycle, let's consider
@@ -121,14 +118,12 @@ func pprofIncrementLabel(ctx context.Context, label string) context.Context {
 	return pprof.WithLabels(ctx, pprof.Labels(label, strconv.Itoa(d+1)))
 }
 
-// L manages concurrent execution lifecycle and supports formatted logs.
+// L manages a procedure's context, managed children, and cleanup.
 //
-// A lifecycle ends when its Procedure returns or calls Fatal. This is the
-// only way to exit a lifecycle. When called from another goroutine, Fatal will
-// not be able to exit the lifecycle.
-//
-// The other reporting methods, such as the variations of Log and Error,
-// may be called simultaneously from multiple goroutines.
+// A lifecycle completes after its Procedure returns, its managed children have
+// completed, and its cleanup functions have run. Calling [L.Terminate] cancels
+// the lifecycle context but does not stop the procedure's goroutine; the
+// procedure should return explicitly.
 type L struct {
 	ctx      context.Context
 	cancel   context.CancelCauseFunc
@@ -215,25 +210,25 @@ func (l *L) exec(logic Procedure) {
 		// won't be able to determine which one of them the lifecycle has reacted to and
 		// the log will contain the child's cause.
 		//
-		// We use defer() because l.Exec() may panic, directly or as a result of
+		// We use defer() because l.Exec() may panic or call the deprecated
 		// l.Fatal().
 		//
-		// TODO: In component v2, we need to consider error management for both the main lifecycle
-		//		 and sub-lifecycles. For example, l.Fatal() sets the context cancellation cause
-		// 		 based on the error from the calling procedure
+		// TODO: In component v2, consider returning lifecycle errors to callers
+		// rather than exposing them only as context cancellation causes.
 		if ctxCause := context.Cause(l.graceCtx); ctxCause != nil {
 			l.common.logger.InfoContext(l.ctx, "lifecycle completed", slog.Any(LogKey, l), slog.Any("cause", ctxCause))
 		} else {
 			l.common.logger.InfoContext(l.ctx, "lifecycle completed", slog.Any(LogKey, l))
 		}
 	}()
-	// defer cleanup funcs to run despite runtime.Goexit() - which is called by
-	// l.Fatal().
+	// Defer cleanup funcs so they run despite runtime.Goexit from the deprecated
+	// l.Fatal compatibility path.
 	defer l.runCleanup()
 	// wait for goroutines started within the lifecycle procedure to finish before
 	// running cleanup funcs.
 	defer l.wg.Wait()
-	// calling the provided procedure in the same goroutine is crucial for l.Fatal().
+	// Calling the provided procedure in this goroutine preserves the deprecated
+	// l.Fatal compatibility behavior.
 	logic.Exec(l)
 }
 
@@ -307,7 +302,8 @@ func (l *L) Fork(name string, procedure Procedure, opts ...ForkOption) {
 	})
 }
 
-// ForkE is like Go except it calls Fatal if the function returns an error.
+// ForkE is like Go except its [ProcE] cancels the forked lifecycle with the
+// returned error as its cause.
 func (l *L) ForkE(name string, proc ProcE) {
 	l.Fork(name, proc)
 }
@@ -396,6 +392,13 @@ func (l *L) Stop(timeout time.Duration) (stopped bool) {
 	}
 }
 
+// Terminate cancels [L.Context] and [L.GraceContext] with [ErrTerminated].
+//
+// Terminate does not stop the calling goroutine. Call it before returning when
+// managed children or other lifecycle work must observe cancellation in order
+// to exit; the lifecycle waits for those children after the procedure returns.
+// If no dependent work needs cancellation, returning from the procedure is
+// sufficient.
 func (l *L) Terminate() {
 	l.cancel(ErrTerminated)
 }
@@ -426,20 +429,21 @@ func (l *L) Log(args ...any) {
 	l.common.logger.InfoContext(l.ctx, fmt.Sprint(args...), slog.Any(LogKey, l))
 }
 
-// Error logs err at error level and records it on the span carried by the
-// lifecycle context.
+// Error logs err at error level.
 //
-// Log through slog instead, and record the error on a span through your tracing
-// setup, such as an slog-to-OpenTelemetry bridge handler, or at the call site:
+// Log through slog instead. If the error belongs to a traced operation, pass
+// that operation's context and record the error on its bounded span:
 //
-//	slog.ErrorContext(l.Context(), "message", "err", err)
-//	trace.SpanFromContext(l.Context()).RecordError(err)
+//	slog.ErrorContext(ctx, "message", "err", err)
+//	span.RecordError(err)
 //
 // Deprecated: use slog directly, as shown above.
 func (l *L) Error(err error) {
+	l.deprecatedError(err)
+}
+
+func (l *L) deprecatedError(err error) {
 	l.common.logger.ErrorContext(l.ctx, "error", slog.Any(LogKey, l), slog.Any("err", err))
-	span := trace.SpanFromContext(l.ctx)
-	span.RecordError(err)
 }
 
 // Errorf is the formatting variant of [L.Error].
@@ -453,10 +457,11 @@ func (l *L) Error(err error) {
 //
 // Deprecated: use slog directly, as shown above.
 func (l *L) Errorf(format string, a ...any) {
-	l.Error(fmt.Errorf(format, a...))
+	l.deprecatedError(fmt.Errorf(format, a...))
 }
 
-// Fatal behaves like Error except it terminates the lifecycle.
+// Fatal logs err, cancels the lifecycle with err as its cause, and terminates
+// the calling goroutine with [runtime.Goexit].
 //
 // When called from goroutines other than the primary lifecycle goroutine,
 // it can't terminate the lifecycle goroutine. Nonetheless, it will
@@ -465,7 +470,24 @@ func (l *L) Errorf(format string, a ...any) {
 //
 // DO NOT call Fatal from goroutines other than those which started the lifecycle
 // (i.e. the goroutine spawned by Run/L.Go/L.Fork/L.ForkE).
+//
+// New code should log through slog, record the error on the bounded span that
+// owns the operation, call [L.Terminate] if managed children need cancellation,
+// and return explicitly.
+//
+// Deprecated: handle the error at the call site and return explicitly.
 func (l *L) Fatal(err error) {
+	l.deprecatedFatal(err)
+}
+
+// Fatalf is the formatting variant of [L.Fatal].
+//
+// Deprecated: handle the error at the call site and return explicitly.
+func (l *L) Fatalf(format string, a ...any) {
+	l.deprecatedFatal(fmt.Errorf(format, a...))
+}
+
+func (l *L) deprecatedFatal(err error) {
 	select {
 	case <-l.done:
 		// when called from a goroutine, we can't terminate the lifecycle
@@ -475,10 +497,6 @@ func (l *L) Fatal(err error) {
 	}
 
 	l.common.logger.ErrorContext(l.ctx, "fatal error", slog.Any(LogKey, l), slog.Any("err", err))
-	// marking the span as errored is a good practice
-	span := trace.SpanFromContext(l.ctx)
-	span.RecordError(err)
-	span.SetStatus(codes.Error, err.Error())
 	// cancel the lifecycle context because a fatal error is unrecoverable, hence
 	// there is no point in continuing.
 	l.cancel(fmt.Errorf("fatality: %w", err))
@@ -487,12 +505,8 @@ func (l *L) Fatal(err error) {
 	runtime.Goexit()
 }
 
-func (l *L) Fatalf(format string, a ...any) {
-	l.Fatal(fmt.Errorf(format, a...))
-}
-
 // A CleanupFunc is a function that is called just before the lifecycle
-// completes - either by returning from a Proc or by calling L.Fatal.
+// completes.
 //
 // CleanupFuncs are called even if the lifecycle is terminated by calling
 // Terminate or if the context is cancelled before the lifecycle completes - for
@@ -543,7 +557,7 @@ func (l *L) runCleanup() {
 			reason := recover()
 			if reason == nil {
 				// we were interrupted by a call to runtime.Goexit(),
-				// most likely from a call to l.Fatal().
+				// most likely from a call to the deprecated l.Fatal().
 				l.runCleanup()
 			} else {
 				// we need to re-panic the original panic value
@@ -582,16 +596,20 @@ func (l *L) Cleanup(fn func()) {
 }
 
 // CleanupError registers the given function to be called after the lifecycle
-// has completed, like Cleanup; However, if the function returns an error, it
-// is logged using the Error() function.
+// has completed, like Cleanup; However, if the function returns an error, it is
+// logged at error level.
 //
 // This helper is useful for calling cleanup functions that return errors,
 // such as io.Closer.Close().
 func (l *L) CleanupError(fn func() error) {
 	l.Cleanup(func() {
 		if err := fn(); err != nil {
-			// TODO: consider a more predictable way to contextually log errors
-			l.Error(fmt.Errorf("during cleanup of %s: %w", l.Name(), err))
+			l.common.logger.ErrorContext(
+				l.ctx,
+				"cleanup failed",
+				slog.Any(LogKey, l),
+				slog.Any("err", err),
+			)
 		}
 	})
 }

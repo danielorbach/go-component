@@ -80,8 +80,9 @@
 //
 // The lifecycle's string-formatting methods — [L.Log], [L.Logf], [L.Error] and
 // [L.Errorf] — predate slog and are deprecated; each names the slog call to
-// write in its place. [L.Fatal] and [L.Fatalf] remain, being control flow that
-// happens to log rather than a way to format a message.
+// write in its place. [L.Fatal] and [L.Fatalf] are deprecated as well: new code
+// handles logging and tracing at the call site, calls [L.Terminate] only when
+// managed children need cancellation, and returns explicitly.
 //
 // # Log levels
 //
@@ -90,6 +91,36 @@
 // application installs rather than of the lifecycle, and is set through
 // [slog.HandlerOptions]. A program that boots through the loader gets that
 // lever as its -loglevel command-line flag.
+//
+// # Completing and terminating procedures
+//
+// Returning completes the current procedure. The lifecycle then waits for its
+// managed children and runs cleanup; it does not cancel their contexts merely
+// because the procedure returned. A leaf procedure with no dependent managed
+// work can therefore handle an error and simply return:
+//
+//	if err != nil {
+//		slog.ErrorContext(ctx, "operation failed", "err", err)
+//		span.RecordError(err)
+//		span.SetStatus(codes.Error, err.Error())
+//		return
+//	}
+//
+// Call [L.Terminate] before returning when children or other managed work must
+// observe cancellation in order to exit:
+//
+//	if err != nil {
+//		slog.ErrorContext(ctx, "supervisor failed", "err", err)
+//		span.RecordError(err)
+//		span.SetStatus(codes.Error, err.Error())
+//		l.Terminate()
+//		return
+//	}
+//
+// Terminate only cancels the lifecycle contexts; it does not abort the caller's
+// goroutine. [ProcE] applies the supervising form automatically when its
+// function returns an error, using that error as the cancellation cause, and
+// then returns normally.
 //
 // # Tracing
 //
