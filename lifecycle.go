@@ -38,11 +38,7 @@ func execute(ctx context.Context, options lifecycleOptions) {
 	// lifecycle are labelled with the lifecycle name. Note, all related goroutines
 	// should be started with pprof.Do to ensure that they are labelled correctly.
 	ctx = pprofIncrementLabel(ctx, "component.depth")
-	// A lifecycle carries cancellation, deadlines, and values from its parent,
-	// but it is not itself a trace operation. Override any current span with an
-	// invalid SpanContext so bounded operations started from L.Context begin
-	// independent traces.
-	ctx = trace.ContextWithSpanContext(ctx, trace.SpanContext{})
+	ctx = detachSpan(ctx)
 	pprof.Do(ctx, pprof.Labels("component.name", options.Name()), func(ctx context.Context) {
 		done := make(chan struct{}) // make ahead of &L for better readability
 

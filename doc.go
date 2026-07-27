@@ -111,6 +111,25 @@
 // Child spans started from the returned ctx retain the ordinary OpenTelemetry
 // parent-child relationship.
 //
+// Register [NewSpanProcessor] with the application's OpenTelemetry
+// TracerProvider to set [SpanComponentNameKey] on spans started from a
+// lifecycle context when the call site has not supplied it. When [WithContext]
+// receives a context with an active span, the lifecycle detaches it rather than
+// making it a parent; the processor links it to parentless operation spans so
+// the relationship remains navigable without merging their traces. Child spans
+// have an explicit parent and do not repeat the link.
+//
+// The processor runs after the OpenTelemetry SDK sampler. The component name
+// and link it supplies are visible to exporters and downstream Collectors, but
+// not to in-process head sampling. Applications that delegate
+// component-sensitive sampling to a Collector must still configure the SDK to
+// export the spans the Collector should consider.
+//
+// Process identity is separate from component identity. Attributes such as
+// service.instance.id belong to the immutable OpenTelemetry Resource configured
+// by the application, shared by its traces, metrics, and logs; this package
+// neither generates nor mutates them.
+//
 // # Correlating logs with traces
 //
 // A component that handles messages for hours emits records throughout, and an
