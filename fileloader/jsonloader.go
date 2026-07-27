@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"reflect"
 
 	"github.com/google/uuid"
@@ -37,7 +38,8 @@ type JSONLoader []byte
 func (x JSONLoader) Exec(l *component.L) {
 	fp, err := UnmarshalFootprintJSON(x)
 	if err != nil {
-		l.Fatalf("json: %w", err)
+		slog.ErrorContext(l.Context(), "load JSON footprint", "err", err)
+		return
 	}
 	loader.Load(fp)
 }

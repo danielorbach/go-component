@@ -112,12 +112,12 @@
 // parent-child relationship.
 //
 // Register [NewSpanProcessor] with the application's OpenTelemetry
-// TracerProvider to set [SpanComponentNameKey] on spans started from a
-// lifecycle context when the call site has not supplied it. When [WithContext]
-// receives a context with an active span, the lifecycle detaches it rather than
-// making it a parent; the processor links it to parentless operation spans so
-// the relationship remains navigable without merging their traces. Child spans
-// have an explicit parent and do not repeat the link.
+// TracerProvider to set [TraceKey] on spans started from a lifecycle context
+// when the call site has not supplied it. When [WithContext] receives a context
+// with an active span, the lifecycle detaches it rather than making it a parent;
+// the processor links it to parentless operation spans so the relationship
+// remains navigable without merging their traces. Child spans have an explicit
+// parent and do not repeat the link.
 //
 // The processor runs after the OpenTelemetry SDK sampler. The component name
 // and link it supplies are visible to exporters and downstream Collectors, but

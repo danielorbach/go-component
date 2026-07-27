@@ -137,13 +137,13 @@ func Load(footprint []byte, format FormatFlag) {
 		if err != nil {
 			loader.InvalidArgument("cannot load footprint: " + err.Error())
 		}
-		loader.Load(fp, component.WithSpan("loader"))
+		loader.Load(fp, component.WithName("loader"))
 	case FormatJSON:
 		fp, err := UnmarshalFootprintJSON(footprint)
 		if err != nil {
 			loader.InvalidArgument("cannot load footprint: " + err.Error())
 		}
-		loader.Load(fp, component.WithSpan("loader"))
+		loader.Load(fp, component.WithName("loader"))
 	case FormatAuto:
 		panic("component/fileloader: cannot auto-detect format from bytes")
 	default:

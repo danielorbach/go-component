@@ -8,9 +8,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// SpanComponentNameKey is the OpenTelemetry attribute key that identifies the
-// component responsible for a span or span event.
-const SpanComponentNameKey attribute.Key = "component.name"
+// TraceKey is the OpenTelemetry attribute key under which a lifecycle's name
+// belongs on a span or span event.
+const TraceKey attribute.Key = "component.name"
 
 // detachedSpanKey is the context key under which a lifecycle privately carries
 // the valid SpanContext that was active when the lifecycle began. New component
@@ -51,11 +51,11 @@ func detachedSpanFrom(ctx context.Context) trace.SpanContext {
 //		sdktrace.WithBatcher(exporter),
 //	)
 //
-// The processor supplies [SpanComponentNameKey] when the span's start
-// attributes do not already contain it, so a value set at the call site takes
-// precedence. If [WithContext] received a context with an active span, that
-// span is detached from the lifecycle and linked to each parentless operation
-// span; ordinary child spans retain their parent and do not repeat the link.
+// The processor supplies [TraceKey] when the span's start attributes do not
+// already contain it, so a value set at the call site takes precedence. If
+// [WithContext] received a context with an active span, that span is detached
+// from the lifecycle and linked to each parentless operation span; ordinary
+// child spans retain their parent and do not repeat the link.
 //
 // OnStart runs after the SDK has made its sampling decision. The attribute and
 // link are therefore available to exporters and downstream Collectors, but not
@@ -71,8 +71,8 @@ func (spanProcessor) OnStart(parent context.Context, span sdktrace.ReadWriteSpan
 	if l == nil {
 		return
 	}
-	if !hasAttribute(span.Attributes(), SpanComponentNameKey) {
-		span.SetAttributes(SpanComponentNameKey.String(l.Name()))
+	if !hasAttribute(span.Attributes(), TraceKey) {
+		span.SetAttributes(TraceKey.String(l.Name()))
 	}
 
 	if span.Parent().IsValid() {

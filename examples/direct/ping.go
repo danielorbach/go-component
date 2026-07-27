@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"gocloud.dev/pubsub"
 
@@ -15,6 +17,8 @@ import (
 )
 
 const PingAspect = "ping"
+
+var pingTracer = otel.Tracer("github.com/danielorbach/go-component/examples/direct/ping")
 
 var (
 	PingInterval time.Duration
@@ -49,11 +53,14 @@ var PingComponent = &component.Descriptor{
 				select {
 				case <-t.C:
 					text := fmt.Sprintf("%s (seq=%d)", options.Data, i)
-					err := pub.Send(l.Context(), &pubsub.Message{Body: []byte(text)})
+					ctx, span := pingTracer.Start(l.Context(), "ping.send", trace.WithSpanKind(trace.SpanKindProducer))
+					err := pub.Send(ctx, &pubsub.Message{Body: []byte(text)})
 					if err != nil {
-						slog.ErrorContext(l.Context(), "send ping", "err", err)
-						trace.SpanFromContext(l.Context()).RecordError(err)
+						slog.ErrorContext(ctx, "send ping", "err", err)
+						span.RecordError(err)
+						span.SetStatus(codes.Error, err.Error())
 					}
+					span.End()
 				case <-l.Stopping():
 					slog.InfoContext(l.Context(), "graceful stop")
 				case <-l.Context().Done():

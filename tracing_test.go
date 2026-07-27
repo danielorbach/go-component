@@ -131,7 +131,7 @@ func ExampleNewSpanProcessor() {
 		_, fallback := tracer.Start(l.Context(), "processor fallback")
 		fallback.End()
 
-		callSiteName := component.SpanComponentNameKey.String("call-site-value")
+		callSiteName := component.TraceKey.String("call-site-value")
 		_, override := tracer.Start(l.Context(), "call site takes precedence", trace.WithAttributes(callSiteName))
 		override.End()
 	}, component.WithName("lifecycle-value"))
@@ -143,7 +143,7 @@ func ExampleNewSpanProcessor() {
 	for _, span := range spans {
 		fmt.Printf("%s:", span.Name)
 		for _, attr := range span.Attributes {
-			fmt.Printf(" %s=%s", attr.Key, attr.Value.Emit())
+			fmt.Printf(" %s=%s", attr.Key, attr.Value.String())
 		}
 		fmt.Println()
 	}
@@ -171,7 +171,7 @@ func assertComponentName(t *testing.T, span sdktrace.ReadOnlySpan, want string) 
 		t.Fatal("span not recorded")
 	}
 	for _, attr := range span.Attributes() {
-		if attr.Key == component.SpanComponentNameKey {
+		if attr.Key == component.TraceKey {
 			if got := attr.Value.AsString(); got != want {
 				t.Errorf("component.name = %q, want %q", got, want)
 			}

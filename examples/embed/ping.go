@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"gocloud.dev/pubsub"
 
@@ -14,6 +16,8 @@ import (
 )
 
 const PingTarget = "ping"
+
+var pingTracer = otel.Tracer("github.com/danielorbach/go-component/examples/embed/ping")
 
 // PingInterval flag sets the interval between pings. The purpose of flags, as
 // opposed to options, is to allow the user to configure the component at
@@ -51,11 +55,14 @@ var PingComponent = &component.Descriptor{
 			for l.Continue() {
 				select {
 				case <-t.C:
-					err := pub.Send(l.Context(), &pubsub.Message{Body: []byte(options.Data)})
+					ctx, span := pingTracer.Start(l.Context(), "ping.send", trace.WithSpanKind(trace.SpanKindProducer))
+					err := pub.Send(ctx, &pubsub.Message{Body: []byte(options.Data)})
 					if err != nil {
-						slog.ErrorContext(l.Context(), "send ping", "err", err)
-						trace.SpanFromContext(l.Context()).RecordError(err)
+						slog.ErrorContext(ctx, "send ping", "err", err)
+						span.RecordError(err)
+						span.SetStatus(codes.Error, err.Error())
 					}
+					span.End()
 				case <-l.Stopping():
 					slog.InfoContext(l.Context(), "graceful stop")
 				case <-l.Context().Done():
