@@ -14,7 +14,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.45.0
 	gocloud.dev v0.46.0
 	gocloud.dev/pubsub/kafkapubsub v0.46.0
-	google.golang.org/grpc v1.83.0
+	google.golang.org/grpc v1.83.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
