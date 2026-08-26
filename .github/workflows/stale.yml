@@ -31,7 +31,7 @@ jobs:
     name: Label & Close
     runs-on: ubuntu-slim
     steps:
-      - uses: actions/stale@v10
+      - uses: actions/stale@v11
         with:
           days-before-pr-stale: 14
           days-before-pr-close: 7
