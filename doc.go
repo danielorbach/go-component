@@ -16,11 +16,12 @@
 // # Configuring a lifecycle
 //
 // [RunProc] and [Run] accept [Option] values that configure the lifecycle before
-// it starts. The common ones are [WithName] to identify it in logs and traces,
-// [WithContext] to root it in a parent context, [WithLogHandler] to direct its
-// log records, and [WithStopper] to hand it a channel whose closing asks the
-// procedure to stop. That stop request is what [L.Continue] and [L.Stopping]
-// report to the running code, so a procedure can wind down on its own terms.
+// it starts. The common ones are [WithName] to identify it in logs and profiles,
+// [WithContext] to derive its cancellation, deadlines, and values,
+// [WithLogHandler] to direct its log records, and [WithStopper] to hand it a
+// channel whose closing asks the procedure to stop. That stop request is what
+// [L.Continue] and [L.Stopping] report to the running code, so a procedure can
+// wind down on its own terms.
 //
 // # Running a program
 //
@@ -79,8 +80,9 @@
 //
 // The lifecycle's string-formatting methods — [L.Log], [L.Logf], [L.Error] and
 // [L.Errorf] — predate slog and are deprecated; each names the slog call to
-// write in its place. [L.Fatal] and [L.Fatalf] remain, being control flow that
-// happens to log rather than a way to format a message.
+// write in its place. [L.Fatal] and [L.Fatalf] are deprecated as well: new code
+// handles logging and tracing at the call site, calls [L.Terminate] only when
+// managed children need cancellation, and returns explicitly.
 //
 // # Log levels
 //
@@ -89,6 +91,75 @@
 // application installs rather than of the lifecycle, and is set through
 // [slog.HandlerOptions]. A program that boots through the loader gets that
 // lever as its -loglevel command-line flag.
+//
+// # Completing and terminating procedures
+//
+// Returning completes the current procedure. The lifecycle then waits for its
+// managed children and runs cleanup; it does not cancel their contexts merely
+// because the procedure returned. A leaf procedure with no dependent managed
+// work can therefore handle an error and simply return:
+//
+//	if err != nil {
+//		slog.ErrorContext(ctx, "operation failed", "err", err)
+//		span.RecordError(err)
+//		span.SetStatus(codes.Error, err.Error())
+//		return
+//	}
+//
+// Call [L.Terminate] before returning when children or other managed work must
+// observe cancellation in order to exit:
+//
+//	if err != nil {
+//		slog.ErrorContext(ctx, "supervisor failed", "err", err)
+//		span.RecordError(err)
+//		span.SetStatus(codes.Error, err.Error())
+//		l.Terminate()
+//		return
+//	}
+//
+// Terminate only cancels the lifecycle contexts; it does not abort the caller's
+// goroutine. [ProcE] applies the supervising form automatically when its
+// function returns an error, using that error as the cancellation cause, and
+// then returns normally.
+//
+// # Tracing
+//
+// A lifecycle is a control-flow boundary, not a trace operation. Component does
+// not hold a span open while a procedure runs: a long-lived component can
+// process many unrelated operations, and making all of them children of one
+// lifecycle span would create one unbounded trace.
+//
+// [L.Context] therefore carries no active span inherited through [WithContext].
+// It still derives cancellation, deadlines, values, and baggage from that
+// context. Start a bounded span where an operation begins and pass the returned
+// context through that operation:
+//
+//	ctx, span := tracer.Start(l.Context(), "handle")
+//	defer span.End()
+//	slog.InfoContext(ctx, "handled message")
+//
+// A span started directly from [L.Context] is the root of an independent trace.
+// Child spans started from the returned ctx retain the ordinary OpenTelemetry
+// parent-child relationship.
+//
+// Register [NewSpanProcessor] with the application's OpenTelemetry
+// TracerProvider to set [TraceKey] on spans started from a lifecycle context
+// when the call site has not supplied it. When [WithContext] receives a context
+// with an active span, the lifecycle detaches it rather than making it a parent;
+// the processor links it to parentless operation spans so the relationship
+// remains navigable without merging their traces. Child spans have an explicit
+// parent and do not repeat the link.
+//
+// The processor runs after the OpenTelemetry SDK sampler. The component name
+// and link it supplies are visible to exporters and downstream Collectors, but
+// not to in-process head sampling. Applications that delegate
+// component-sensitive sampling to a Collector must still configure the SDK to
+// export the spans the Collector should consider.
+//
+// Process identity is separate from component identity. Attributes such as
+// service.instance.id belong to the immutable OpenTelemetry Resource configured
+// by the application, shared by its traces, metrics, and logs; this package
+// neither generates nor mutates them.
 //
 // # Correlating logs with traces
 //

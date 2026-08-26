@@ -5,8 +5,6 @@ import (
 	"errors"
 	"log"
 	"log/slog"
-
-	"go.opentelemetry.io/otel"
 )
 
 // The Procedure is the primary procedure of the component lifecycle.
@@ -17,10 +15,15 @@ import (
 //     complete until all goroutines started by L.Go have been completed.
 //   - L.Cleanup (and variants) registers a function to be called when the
 //     component completes.
-//   - L.Fatal terminates the component with the given error.
 //   - L.Context returns the context associated with the component; pass it
 //     to slog's Context methods so log records identify the component.
-//   - L.Terminate terminates the component, causing L.Context to be canceled.
+//   - L.Terminate cancels the component context when managed children must be
+//     told to exit before the procedure returns.
+//
+// Returning from Exec completes the procedure, after which the lifecycle waits
+// for managed children and runs cleanup. Returning does not cancel [L.Context];
+// call [L.Terminate] before returning when managed children need cancellation
+// in order to exit.
 type Procedure interface {
 	Exec(*L)
 }
@@ -41,26 +44,25 @@ func (f Proc) Exec(l *L) {
 // The ProcE type is an adapter to allow the use of ordinary functions as
 // component Procedure.
 //
-// If f is a function with the appropriate signature,
-// ProcE(f) is a Procedure that calls f and then calls Fatal if it returned a
-// non-nil error.
+// If f is a function with the appropriate signature, ProcE(f) is a Procedure
+// that calls f. If f returns a non-nil error, ProcE cancels the lifecycle with
+// that error as its cause and then returns normally. Cancellation tells managed
+// children to exit before the lifecycle waits for them.
 //
 // See notes on Procedure for more details about this function.
 type ProcE func(*L) error
 
 func (f ProcE) Exec(l *L) {
 	if err := f(l); err != nil {
-		l.Fatal(err)
+		l.cancel(err)
 	}
 }
-
-var tracer = otel.Tracer("github.com/danielorbach/go-component")
 
 // RunProc runs the provided procedure function, passing it a new lifecycle.
 //
 // The function blocks until the lifecycle has completed; i.e., until the main
-// function has returned (or called L.Fatal), all its child lifecycles have
-// completed, and all cleanup functions have been called.
+// function has returned, all its child lifecycles have completed, and all
+// cleanup functions have been called.
 func RunProc(main Proc, opts ...Option) {
 	Run(main, opts...)
 }
@@ -68,8 +70,8 @@ func RunProc(main Proc, opts ...Option) {
 // Run runs the provided procedure, passing it a new lifecycle.
 //
 // The function blocks until the lifecycle has completed; i.e., until the main
-// function has returned (or called L.Fatal), all its child lifecycles have
-// completed, and all cleanup functions have been called.
+// function has returned, all its child lifecycles have completed, and all
+// cleanup functions have been called.
 func Run(body Procedure, opts ...Option) {
 	options := lifecycleOptions{
 		ctx:       context.Background(),
@@ -98,7 +100,6 @@ type Option func(*lifecycleOptions)
 // rather interact through exported methods.
 type lifecycleOptions struct {
 	name           string
-	span           string // overrides 'name' if set
 	ctx            context.Context
 	done           chan struct{}
 	stopper        <-chan struct{}
@@ -121,15 +122,6 @@ func (o lifecycleOptions) validate() error {
 
 // Name returns the name associated with the lifecycle options.
 func (o lifecycleOptions) Name() string {
-	return o.name
-}
-
-// SpanName returns the span name if specified; otherwise, it defaults to the
-// lifecycle name.
-func (o lifecycleOptions) SpanName() string {
-	if o.span != "" {
-		return o.span
-	}
 	return o.name
 }
 
@@ -189,16 +181,23 @@ func WithName(name string) Option {
 	}
 }
 
-// WithSpan overrides the name of the new lifecycle in the trace.
-// If no name is provided, the name of the lifecycle is used.
-func WithSpan(name string) Option {
-	return func(o *lifecycleOptions) {
-		o.span = name
-	}
+// WithSpan used to override the name of the span that component held open for
+// the lifetime of a lifecycle. Component no longer creates that span, so the
+// option has no effect. It remains as a no-op for v1 source compatibility.
+//
+// Deprecated: instead of configuring a lifecycle span, start bounded operation
+// spans from [L.Context] and name them at their call sites.
+func WithSpan(string) Option {
+	return func(*lifecycleOptions) {}
 }
 
-// WithContext sets the parent context of the new lifecycle.
-// If no context is provided, a background context is used.
+// WithContext sets the context from which the new lifecycle derives
+// cancellation, deadlines, and values. If no context is provided, a background
+// context is used.
+//
+// A span carried by ctx is not inherited as the parent of spans started from
+// [L.Context]. A component procedure is a trace boundary: its operations start
+// independent traces rather than accumulating under a lifecycle-long parent.
 func WithContext(ctx context.Context) Option {
 	return func(o *lifecycleOptions) {
 		o.ctx = ctx
@@ -292,12 +291,15 @@ func WithForkName(name string) ForkOption {
 	}
 }
 
-// WithForkSpanName overrides the name of the new forked lifecycle in the trace.
-// If no name is provided, the name of the lifecycle is used.
-func WithForkSpanName(name string) Option {
-	return func(o *lifecycleOptions) {
-		o.span = name
-	}
+// WithForkSpanName used to override the name of the span that component held
+// open for the lifetime of a forked lifecycle. Component no longer creates that
+// span, so the option has no effect. It remains as a no-op for v1 source
+// compatibility.
+//
+// Deprecated: start bounded operation spans from [L.Context] and name them at
+// their call sites.
+func WithForkSpanName(string) Option {
+	return func(*lifecycleOptions) {}
 }
 
 // WithForkCompletion closes the given channel to signal that the new lifecycle

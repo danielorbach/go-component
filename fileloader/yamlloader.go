@@ -2,6 +2,7 @@ package fileloader
 
 import (
 	"fmt"
+	"log/slog"
 	"reflect"
 
 	"github.com/google/uuid"
@@ -34,7 +35,8 @@ type YAMLLoader []byte
 func (x YAMLLoader) Exec(l *component.L) {
 	fp, err := x.footprint()
 	if err != nil {
-		l.Fatal(fmt.Errorf("yaml: %w", err))
+		slog.ErrorContext(l.Context(), "load YAML footprint", "err", err)
+		return
 	}
 	loader.Load(fp)
 }

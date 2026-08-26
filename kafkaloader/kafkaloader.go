@@ -53,7 +53,7 @@ func Main(group string) {
 
 	// multiple instances of the same executable cooperatively respect the same
 	// footprint bus, so that only one of them will load a given footprint.
-	loader.Entrypoint(Loader{ReplicaSet: group}, component.WithSpan("loader"))
+	loader.Entrypoint(Loader{ReplicaSet: group}, component.WithName("loader"))
 }
 
 type Loader struct {
@@ -63,41 +63,56 @@ type Loader struct {
 func (x Loader) Exec(l *component.L) {
 	control, err := OpenControlSubscription(x.ReplicaSet)
 	if err != nil {
-		l.Fatalf("open footprint-control subscription: %w", err)
+		slog.ErrorContext(l.Context(), "open footprint-control subscription", "err", err)
+		return
 	}
 	l.CleanupBackground(control.Shutdown)
 
 	for l.Continue() {
+		// Receive may wait for the lifetime of the loader. Holding a span while
+		// idle would recreate a lifecycle-long operation, and an error carries no
+		// delivered message context from which to continue a trace.
 		m, err := control.Receive(l.GraceContext())
 		if err != nil {
-			if errors.Is(err, context.Canceled) && errors.Is(context.Cause(l.GraceContext()), component.ErrStopped) {
-				break
+			if errors.Is(err, context.Canceled) {
+				if errors.Is(context.Cause(l.GraceContext()), component.ErrStopped) {
+					break
+				}
+				slog.InfoContext(l.Context(), "footprint receiver canceled", "cause", context.Cause(l.Context()))
+				return
 			}
 			slog.ErrorContext(l.Context(), "receive footprint", "err", err)
-			trace.SpanFromContext(l.Context()).RecordError(err)
 			continue
 		}
 		m.Ack()
 
-		var msg *sarama.ConsumerMessage
-		if !m.As(&msg) {
-			l.Fatalf("unexpected message type: %T", m)
+		if !handleFootprint(l, m) {
+			return
 		}
-		handleFootprint(l, msg)
 	}
 }
 
-func handleFootprint(l *component.L, msg *sarama.ConsumerMessage) {
+func handleFootprint(l *component.L, message *pubsub.Message) bool {
 	// TODO: link to producer span
-	_, span := tracer.Start(l.Context(), "handleFootprint", trace.WithSpanKind(trace.SpanKindConsumer))
-	defer span.End()
+	ctx, span := tracer.Start(l.Context(), "handleFootprint", trace.WithSpanKind(trace.SpanKindConsumer))
+
+	var msg *sarama.ConsumerMessage
+	if !message.As(&msg) {
+		err := errors.New("footprint message is not a Sarama consumer message")
+		slog.ErrorContext(ctx, "unexpected footprint message type", "err", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.End()
+		return false
+	}
 
 	fp, err := fileloader.UnmarshalFootprintJSON(msg.Value)
 	if err != nil {
-		slog.ErrorContext(l.Context(), "unmarshal footprint", "err", err)
+		slog.ErrorContext(ctx, "unmarshal footprint", "err", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error()) // TODO: how does this look in Jaeger?
-		return
+		span.End()
+		return true
 	}
 
 	span.SetAttributes(
@@ -108,9 +123,13 @@ func handleFootprint(l *component.L, msg *sarama.ConsumerMessage) {
 		attribute.Stringer("footprint.identifier", fp.Identifier),
 		attribute.Int("footprint.revision", fp.Revision),
 	)
+	span.End()
 
-	// load the relevant components from the footprint
-	loader.Load(fp)
+	// Load blocks for the components' lifetimes, so the bounded message span has
+	// already ended. Passing its context lets the new lifecycle detach it and
+	// link parentless component operations back to this footprint message.
+	loader.Load(fp, component.WithContext(ctx))
+	return true
 }
 
 func OpenControlTopic() (*pubsub.Topic, error) {

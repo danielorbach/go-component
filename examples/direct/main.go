@@ -8,14 +8,20 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/danielorbach/go-component"
 	"github.com/danielorbach/go-component/loader"
 )
+
+var probeTracer = otel.Tracer("github.com/danielorbach/go-component/examples/direct/probe")
 
 func main() {
 	loader.ParseFlags(PingComponent, PongComponent)
@@ -47,19 +53,28 @@ func main() {
 		l.Go("prober", func(l *component.L) {
 			sub, err := binding.LinkInterest(l.Context(), PongAspect)
 			if err != nil {
-				l.Fatal(err)
+				slog.ErrorContext(l.Context(), "open pong interest", "err", err)
+				return
 			}
 			l.CleanupBackground(sub.Shutdown)
 
 			for l.Continue() {
-				msg, err := sub.Receive(l.GraceContext())
-				if err != nil {
-					slog.ErrorContext(l.Context(), "receive", "err", err)
-					trace.SpanFromContext(l.Context()).RecordError(err)
+				ctx, span := probeTracer.Start(l.GraceContext(), "probe.receive", trace.WithSpanKind(trace.SpanKindConsumer))
+				msg, err := sub.Receive(ctx)
+				switch {
+				case errors.Is(err, context.Canceled):
+					span.End()
+					return
+				case err != nil:
+					slog.ErrorContext(ctx, "receive", "err", err)
+					span.RecordError(err)
+					span.SetStatus(codes.Error, err.Error())
+					span.End()
 					continue
 				}
 				msg.Ack()
-				slog.InfoContext(l.Context(), "received", "body", string(msg.Body))
+				slog.InfoContext(ctx, "received", "body", string(msg.Body))
+				span.End()
 			}
 		})
 

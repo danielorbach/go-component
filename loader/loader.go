@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"gocloud.dev/pubsub"
 
@@ -195,7 +196,7 @@ func loadFootprintComponents(l *component.L, footprint Footprint) {
 		if !IsEnabled(claim.Component) {
 			slog.InfoContext(l.Context(), "skipping disabled component", "name", claim.Component.Name)
 			span.AddEvent("loader.skip", trace.WithAttributes(
-				attribute.String("component.name", claim.Component.Name),
+				component.TraceKey.String(claim.Component.Name),
 				attribute.Stringer("footprint.identifier", footprint.Identifier),
 				attribute.Int("footprint.revision", footprint.Revision),
 			))
@@ -203,7 +204,7 @@ func loadFootprintComponents(l *component.L, footprint Footprint) {
 		}
 
 		span.AddEvent("loader.load", trace.WithAttributes(
-			attribute.String("component.name", claim.Component.Name),
+			component.TraceKey.String(claim.Component.Name),
 			attribute.Stringer("footprint.identifier", footprint.Identifier),
 			attribute.Int("footprint.revision", footprint.Revision),
 		))
@@ -327,20 +328,25 @@ func (c *Claim) Exec(l *component.L) {
 		panic("loaded claim can be executed only once")
 	}
 
-	span := trace.SpanFromContext(l.Context())
-	span.SetAttributes(
-		attribute.String("component.name", c.Component.Name),
+	ctx, span := tracer.Start(l.Context(), "component.bootstrap", trace.WithAttributes(
+		component.TraceKey.String(c.Component.Name),
 		attribute.String("component.binding", fmt.Sprintf("%+v", c.Binding)),
 		attribute.String("component.options", fmt.Sprintf("%+v", c.Options)),
-	)
+	))
+	defer span.End()
 
 	linker := protectLinker(c.Binding, c.Component)
 	//if c.Component.Bootstrap == nil {
 	//	c.Component.Run(l, linker, c.Options, superClaim{}.ready)
 	//}
-	err := c.Component.Bootstrap(l, linker, c.Options)
-	if err != nil {
-		l.Fatalf("bootstrap: %w", err)
+	if err := c.Component.Bootstrap(l, linker, c.Options); err != nil {
+		slog.ErrorContext(ctx, "bootstrap component", "err", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		// Bootstrap may have started managed children before failing. Cancel the
+		// lifecycle so they can exit before L waits for them on return.
+		l.Terminate()
+		return
 	}
 	// Mark the claim as ready after successfully bootstrapping the component.
 	// Placing this here ensures that the claim is only marked ready once we confirm

@@ -1,6 +1,8 @@
 package component_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -181,6 +183,66 @@ func ExampleL_Continue() {
 	// stopped
 }
 
+// A leaf procedure that has no managed children depending on cancellation can
+// handle an error and simply return. Returning completes the procedure; the
+// lifecycle then runs cleanup normally.
+func ExampleProcedure_return() {
+	component.RunProc(func(l *component.L) {
+		l.Cleanup(func() { fmt.Println("leaf cleanup ran") })
+		if err := errors.New("leaf failed"); err != nil {
+			fmt.Println("leaf handled its error")
+			return
+		}
+	})
+	fmt.Println("component completed")
+
+	// Output:
+	// leaf handled its error
+	// leaf cleanup ran
+	// component completed
+}
+
+// An error-returning procedure can stop managed workers by returning its
+// failure through ProcE. The lifecycle uses that error as its cancellation
+// cause and waits for the workers before Run returns.
+func ExampleProcE() {
+	component.Run(component.ProcE(func(l *component.L) error {
+		l.Go("worker", func(l *component.L) {
+			<-l.Context().Done()
+			fmt.Println("worker stopped:", context.Cause(l.Context()))
+		})
+		return errors.New("startup failed")
+	}))
+
+	// Output:
+	// worker stopped: startup failed
+}
+
+// A supervisor terminates its lifecycle before returning when managed children
+// need cancellation in order to exit. Returning without Terminate here would
+// leave the worker blocked while the lifecycle waited for it. RunProc is the
+// lifecycle's join point: it returns only after the canceled worker has stopped.
+func ExampleL_Terminate() {
+	component.RunProc(func(l *component.L) {
+		l.Go("worker", func(l *component.L) {
+			<-l.Context().Done()
+			fmt.Println("worker canceled:", errors.Is(context.Cause(l.Context()), component.ErrTerminated))
+		})
+
+		if err := errors.New("supervisor failed"); err != nil {
+			fmt.Println("supervisor handled its error")
+			l.Terminate()
+			return
+		}
+	})
+	fmt.Println("component completed")
+
+	// Output:
+	// supervisor handled its error
+	// worker canceled: true
+	// component completed
+}
+
 // A component that has nothing to poll and simply blocks until the program asks
 // it to stop. L.Stopping returns a channel that closes on the stop request
 // (delivered here through WithStopper, which a real program wires to an
@@ -212,7 +274,7 @@ func (j job) Exec(*component.L) {
 // A lifecycle manages the goroutines it spawns: RunProc returns only after every
 // child it started has finished. The three methods differ in what they accept -
 // L.Go a plain [component.Proc], L.ForkE a [component.ProcE] whose returned error
-// terminates the component, and L.Fork any [component.Procedure], such as job.
+// cancels its lifecycle, and L.Fork any [component.Procedure], such as job.
 func Example_managedGoroutines() {
 	component.RunProc(func(l *component.L) {
 		l.Go("go", func(*component.L) {

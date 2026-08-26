@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"gocloud.dev/pubsub"
 
@@ -11,6 +15,8 @@ import (
 )
 
 const PongTarget = "pong"
+
+var pongTracer = otel.Tracer("github.com/danielorbach/go-component/examples/embed/pong")
 
 var PongComponent = &component.Descriptor{
 	Name: "pong",
@@ -29,20 +35,35 @@ var PongComponent = &component.Descriptor{
 		l.CleanupBackground(sub.Shutdown)
 
 		l.Go("echo", func(l *component.L) {
-			for l.Continue() {
-				msg, err := sub.Receive(l.GraceContext())
-				if err != nil {
-					slog.ErrorContext(l.Context(), "receive", "err", err)
-					trace.SpanFromContext(l.Context()).RecordError(err)
-					continue
+			echo := func() bool {
+				ctx, span := pongTracer.Start(l.GraceContext(), "pong.echo", trace.WithSpanKind(trace.SpanKindConsumer))
+				defer span.End()
+
+				msg, err := sub.Receive(ctx)
+				switch {
+				case errors.Is(err, context.Canceled):
+					return false
+				case err != nil:
+					slog.ErrorContext(ctx, "receive", "err", err)
+					span.RecordError(err)
+					span.SetStatus(codes.Error, err.Error())
+					return true
 				}
 				msg.Ack()
 
-				echo := "ECHO " + string(msg.Body)
-				err = pub.Send(l.Context(), &pubsub.Message{Body: []byte(echo)})
+				body := "ECHO " + string(msg.Body)
+				err = pub.Send(ctx, &pubsub.Message{Body: []byte(body)})
 				if err != nil {
-					slog.ErrorContext(l.Context(), "send", "err", err)
-					trace.SpanFromContext(l.Context()).RecordError(err)
+					slog.ErrorContext(ctx, "send", "err", err)
+					span.RecordError(err)
+					span.SetStatus(codes.Error, err.Error())
+				}
+				return true
+			}
+
+			for l.Continue() {
+				if !echo() {
+					return
 				}
 				// we do not log this echo, run ProbeComponent to inspect the messages
 			}
